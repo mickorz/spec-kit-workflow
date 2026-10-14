@@ -1,0 +1,8 @@
+{
+  "feature": "login",
+  "approvedSpecHash": "sha256-7edff2b2be50ea33d58e4fca777f7e85a942ed4ea9c670364d91a8cf9f39ea24",
+  "approvedTraceabilityHash": "sha256-07f63a84a00b822527ac561765725154d55dda4902762a491ea25ca1845716f3",
+  "approvedTasksHash": "sha256-98d646579c2deeb6886126f38b25bdc9808d5173ba5b0d3c334a78e90b986fb1",
+  "status": "approved",
+  "frozenAt": "2026-10-13T09:28:29.974Z"
+}

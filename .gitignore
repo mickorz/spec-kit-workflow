@@ -1,0 +1,30 @@
+# 依赖与构建产物
+node_modules/
+dist/
+
+# 第三方依赖/外部代码
+thirdparties/
+
+# 开发过程目录（不进 git）
+dev-docs/
+dev-examples/
+
+# 实验运行数据（不进 git）
+experiments/runs/
+experiments/results/
+
+# macOS
+.DS_Store
+
+# Claude Code 本地配置（不进 git）
+.claude/settings.local.json
+
+# 工作流运行时数据（不进 git）
+.opencode-workflows/runs/
+.opencode-workflows/journal/
+
+# 备份文件
+*.bak
+
+# 实验临时 spec 目录
+specs/experiment-*/

@@ -1,0 +1,52 @@
+{
+  "features": {
+    "login": {
+      "appDir": "fixtures/login-app",
+      "buildCommand": "npm run build",
+      "testCommand": "npm test",
+      "sourceGlobs": [
+        "src/**/*.ts"
+      ],
+      "testGlobs": [
+        "tests/**/*.ts"
+      ],
+      "timeoutMs": 300000
+    },
+    "experiment-B-01": {
+      "appDir": "E:\\WorkProjects\\spec-kit-workflow\\experiments\\runs\\B-01/app",
+      "buildCommand": "npx tsc --noEmit",
+      "testCommand": "npx vitest run",
+      "sourceGlobs": [
+        "src/**/*.ts"
+      ],
+      "testGlobs": [
+        "tests/**/*.ts"
+      ],
+      "timeoutMs": 300000
+    },
+    "experiment-B-02": {
+      "appDir": "E:\\WorkProjects\\spec-kit-workflow\\experiments\\runs\\B-02/app",
+      "buildCommand": "npx tsc --noEmit",
+      "testCommand": "npx vitest run",
+      "sourceGlobs": [
+        "src/**/*.ts"
+      ],
+      "testGlobs": [
+        "tests/**/*.ts"
+      ],
+      "timeoutMs": 300000
+    },
+    "experiment-B-03": {
+      "appDir": "E:\\WorkProjects\\spec-kit-workflow\\experiments\\runs\\B-03/app",
+      "buildCommand": "npx tsc --noEmit",
+      "testCommand": "npx vitest run",
+      "sourceGlobs": [
+        "src/**/*.ts"
+      ],
+      "testGlobs": [
+        "tests/**/*.ts"
+      ],
+      "timeoutMs": 300000
+    }
+  }
+}

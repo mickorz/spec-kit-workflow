@@ -1,0 +1,33 @@
+﻿{
+  "converged": false,
+  "feature": "login",
+  "round": 99,
+  "conditions": {
+    "C1": {
+      "passed": true
+    },
+    "C5": {
+      "passed": true
+    },
+    "C6": {
+      "passed": true
+    },
+    "C2": {
+      "passed": true
+    },
+    "C3": {
+      "passed": false,
+      "details": [
+        "NFR-004: partial - Spec 瑕佹眰鎵€鏈夊璁℃棩蹇楀寘鍚潵婧?IP, 浣?AUTO_UNLOCK(lockout-service.ts:116 浼?undefined)銆丄DMIN_UN"
+      ]
+    },
+    "C4": {
+      "passed": true
+    },
+    "C7": {
+      "passed": true
+    }
+  },
+  "engineeringPassed": true,
+  "status": "pending_review"
+}

@@ -1,0 +1,50 @@
+﻿{
+  "converged": false,
+  "feature": "login",
+  "round": 2,
+  "conditions": {
+    "C1": {
+      "passed": true
+    },
+    "C5": {
+      "passed": true
+    },
+    "C6": {
+      "passed": true
+    },
+    "C2": {
+      "passed": true
+    },
+    "C3": {
+      "passed": true
+    },
+    "C4": {
+      "passed": false,
+      "details": [
+        "AC-002 搴斿睘浜?FR-001 浣嗚 NFR-005 寮曠敤",
+        "AC-008 搴斿睘浜?FR-002 浣嗚 NFR-005 寮曠敤",
+        "AC-009 搴斿睘浜?FR-003 浣嗚 NFR-003 寮曠敤",
+        "AC-011 搴斿睘浜?FR-003 浣嗚 NFR-003 寮曠敤",
+        "AC-012 搴斿睘浜?FR-003 浣嗚 NFR-003 寮曠敤",
+        "AC-021 搴斿睘浜?FR-006 浣嗚 NFR-001 寮曠敤",
+        "FR-001: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "FR-002: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "FR-003: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "FR-004: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "FR-005: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "FR-006: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "FR-007: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "NFR-001: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "NFR-002: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "NFR-003: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "NFR-004: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?,
+        "NFR-005: status=pass 浣嗘棤 verifications 鏁扮粍锛圫trict 妯″紡瑕佹眰閫?AC 璇佹嵁锛?
+      ]
+    },
+    "C7": {
+      "passed": true
+    }
+  },
+  "engineeringPassed": true,
+  "status": "pending_review"
+}

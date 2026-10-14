@@ -1,0 +1,112 @@
+{
+  "feature": "login",
+  "specHash": "sha256-7edff2b2be50ea33d58e4fca777f7e85a942ed4ea9c670364d91a8cf9f39ea24",
+  "mappings": [
+    {
+      "requirementId": "FR-001",
+      "taskId": "T-001",
+      "acceptanceIds": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005"
+      ],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "FR-002",
+      "taskId": "T-002",
+      "acceptanceIds": [
+        "AC-006",
+        "AC-007",
+        "AC-008"
+      ],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "FR-003",
+      "taskId": "T-003",
+      "acceptanceIds": [
+        "AC-009",
+        "AC-010",
+        "AC-011",
+        "AC-012"
+      ],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "FR-004",
+      "taskId": "T-004",
+      "acceptanceIds": [
+        "AC-013",
+        "AC-014",
+        "AC-015",
+        "AC-016"
+      ],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "FR-005",
+      "taskId": "T-005",
+      "acceptanceIds": [
+        "AC-017",
+        "AC-018",
+        "AC-019",
+        "AC-020"
+      ],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "FR-006",
+      "taskId": "T-006",
+      "acceptanceIds": [
+        "AC-021",
+        "AC-022",
+        "AC-023"
+      ],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "FR-007",
+      "taskId": "T-007",
+      "acceptanceIds": [
+        "AC-024",
+        "AC-025",
+        "AC-026",
+        "AC-027"
+      ],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "NFR-001",
+      "taskId": "T-008",
+      "acceptanceIds": [],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "NFR-002",
+      "taskId": "T-009",
+      "acceptanceIds": [],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "NFR-003",
+      "taskId": "T-010",
+      "acceptanceIds": [],
+      "verificationMethod": "test"
+    },
+    {
+      "requirementId": "NFR-004",
+      "taskId": "T-011",
+      "acceptanceIds": [],
+      "verificationMethod": "manual"
+    },
+    {
+      "requirementId": "NFR-005",
+      "taskId": "T-012",
+      "acceptanceIds": [],
+      "verificationMethod": "test"
+    }
+  ]
+}

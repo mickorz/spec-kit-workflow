@@ -1,0 +1,100 @@
+{
+  "feature": "login",
+  "round": 1,
+  "items": [
+    {
+      "findingId": "F-001",
+      "taskId": "T-013",
+      "type": "test_infrastructure",
+      "source": "evidence.json",
+      "test": "build",
+      "reason": "构建失败",
+      "action": "fix"
+    },
+    {
+      "findingId": "F-002",
+      "taskId": "T-014",
+      "type": "test_infrastructure",
+      "source": "evidence.json",
+      "test": "none",
+      "reason": "测试命令退出 0 但无实际测试执行记录",
+      "action": "fix"
+    },
+    {
+      "findingId": "F-003",
+      "taskId": "T-015",
+      "type": "requirement_gap",
+      "source": "review.json",
+      "requirementId": "FR-003",
+      "status": "partial",
+      "reason": "失败计数器存在（recordFailure/resetFailures），但失败达阈值时自动锁定逻辑未实现（lockout-service.ts:26 注释明确写'不实现失败次数达到阈值时的自动锁定'）。AC-009 自动锁定触发缺失：recordFailure 仅递增 failedAttempts，从不与阈值比较、从不设置 lockedAt。AC-011 锁定阈值无配置参数，无最小值 3 强制。AC-012 锁定时长无配置参数，无默认 15 分钟，无'配置为 0 表示永久锁定'逻辑。AC-010 锁定拒绝逻辑存在于 checkLockStatus，但因自动锁定未实现无法通过失败路径触发，也无测试验证非永久锁定下正确密码被拒且计数不增加。",
+      "evidenceRefs": [
+        "AC-009",
+        "AC-010",
+        "AC-011",
+        "AC-012"
+      ],
+      "action": "fix"
+    },
+    {
+      "findingId": "F-004",
+      "taskId": "T-016",
+      "type": "requirement_gap",
+      "source": "review.json",
+      "requirementId": "FR-006",
+      "status": "partial",
+      "reason": "AC-021/AC-022 已实现并测试（bcrypt 带盐哈希、哈希比对）。AC-023 密码迁移服务（password-migration.ts）存在但未集成到登录流程——auth-service.ts 检测算法并用对应 hasher 校验（旧算法兼容），但不调用 migrateIfNeeded 做重新哈希迁移。password-migration.ts 有 TypeScript 编译错误（第 40/52 行 detectedAlgo 类型 string|null 赋值给 string）。迁移测试仅覆盖'算法一致无需迁移'场景，未测试实际从旧算法迁移到新算法的完整路径。",
+      "evidenceRefs": [
+        "AC-021",
+        "AC-022",
+        "AC-023"
+      ],
+      "action": "fix"
+    },
+    {
+      "findingId": "F-005",
+      "taskId": "T-017",
+      "type": "requirement_gap",
+      "source": "review.json",
+      "requirementId": "NFR-001",
+      "status": "partial",
+      "reason": "bcrypt 带盐慢哈希已实现，BcryptHasher 强制最低 cost factor 为 10，PasswordStorageValidator 可检测明文/无盐 MD5/SHA1 存储。但'哈希计算开销不低于可配置下限（默认 100ms）'未实现为可配置参数——代码仅强制 cost factor 下限，无耗时门槛校验。测试仅验证 cost factor 10 耗时 >50ms，未达到 spec 要求的 100ms 默认下限。",
+      "evidenceRefs": [],
+      "action": "fix"
+    },
+    {
+      "findingId": "F-006",
+      "taskId": "T-018",
+      "type": "requirement_gap",
+      "source": "review.json",
+      "requirementId": "NFR-002",
+      "status": "unverified",
+      "reason": "PerformanceMiddleware 可收集 P95/P99 分位统计数据，但测试未断言 P95<=500ms 或 P99<=1000ms 的具体阈值——仅验证统计功能可用及耗时 >0。构建失败（admin-unlock.ts 和 password-migration.ts 的 TypeScript 编译错误）导致全部测试未实际执行，无运行期性能证据。",
+      "evidenceRefs": [],
+      "action": "fix"
+    },
+    {
+      "findingId": "F-007",
+      "taskId": "T-019",
+      "type": "requirement_gap",
+      "source": "review.json",
+      "requirementId": "NFR-003",
+      "status": "partial",
+      "reason": "IP 维度登录失败频率限制已实现并测试（IpRateLimiter 含限流/封禁/到期恢复/参数动态调整）。但'单账号连续失败达阈值即锁定'依赖 FR-003 自动锁定逻辑，该逻辑未实现。锁定参数（阈值、时长）未作为可配置项存在于 LockoutService 中——LockoutService 构造函数不接受配置参数，无法在不重启情况下动态调整锁定阈值与时长。",
+      "evidenceRefs": [],
+      "action": "fix"
+    },
+    {
+      "findingId": "F-008",
+      "taskId": "T-020",
+      "type": "requirement_gap",
+      "source": "review.json",
+      "requirementId": "NFR-004",
+      "status": "partial",
+      "reason": "登录成功/失败（含 failedAttempts）/自动解锁/管理员解锁/登出事件已记录并测试，日志含时间戳/账号标识/IP/事件类型/结果。但 LOCK_TRIGGERED 事件类型虽在 AuditEventType 枚举中定义却从未被记录（因 FR-003 自动锁定未实现）。日志防篡改未实现——AuditService 为内存数组，clear() 方法可清空全部日志，任何持有引用的代码可修改。90 天保留策略未实现——无持久化存储，服务重启后日志丢失。",
+      "evidenceRefs": [],
+      "action": "fix"
+    }
+  ],
+  "derivedFrom": "evidence.json + review.json"
+}
