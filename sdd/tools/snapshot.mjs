@@ -3,9 +3,11 @@
 // 用法:
 //   快照: node sdd/tools/snapshot.mjs snapshot <dir> <output.json> [--patterns src/**/*.ts,tests/**/*.ts]
 //   对比: node sdd/tools/snapshot.mjs compare <before.json> <after.json>
+//   备份: node sdd/tools/snapshot.mjs backup <dir> <backupDir> [patterns]
+//   恢复: node sdd/tools/snapshot.mjs restore <backupDir> <dir>
 // 对比模式: 有变化则 exit 1，无变化 exit 0
 
-import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync } from 'node:fs'
+import { readFileSync, writeFileSync, existsSync, readdirSync, statSync, mkdirSync, copyFileSync, rmSync, chmodSync } from 'node:fs'
 import { resolve, join, relative } from 'node:path'
 import { createHash } from 'node:crypto'
 
@@ -150,7 +152,70 @@ if (mode === 'snapshot') {
     process.exit(1)
   }
 
+} else if (mode === 'backup') {
+  const dir = process.argv[3]
+  const backupDir = process.argv[4]
+  const patternsArg = process.argv[5] || 'src/**/*.ts,src/**/*.js,tests/**/*.ts,tests/**/*.js'
+  const patterns = patternsArg.split(',').map(p => p.trim())
+
+  if (!dir || !backupDir) {
+    console.error('Usage: snapshot.mjs backup <dir> <backupDir> [patterns]')
+    process.exit(1)
+  }
+
+  const files = globMatch(resolve(dir), patterns)
+
+  // Windows: 清除只读属性后删除旧备份
+  if (existsSync(backupDir)) {
+    function clearReadOnly(dir) {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) clearReadOnly(full)
+        else { try { chmodSync(full, 0o666) } catch {} }
+      }
+    }
+    clearReadOnly(backupDir)
+    rmSync(backupDir, { recursive: true, force: true })
+  }
+  mkdirSync(backupDir, { recursive: true })
+
+  for (const f of files) {
+    const src = resolve(dir, f)
+    const dst = resolve(backupDir, f)
+    mkdirSync(resolve(dst).replace(/[/\\][^/\\]+$/, ''), { recursive: true })
+    copyFileSync(src, dst)
+  }
+
+  console.log(`[backup] ${files.length} files -> ${backupDir}`)
+
+} else if (mode === 'restore') {
+  const backupDir = process.argv[3]
+  const dir = process.argv[4]
+
+  if (!backupDir || !dir) {
+    console.error('Usage: snapshot.mjs restore <backupDir> <dir>')
+    process.exit(1)
+  }
+
+  function walkRestore(bk, target) {
+    let count = 0
+    for (const entry of readdirSync(bk)) {
+      const bkFull = join(bk, entry)
+      const targetFull = join(target, entry)
+      if (statSync(bkFull).isDirectory()) {
+        count += walkRestore(bkFull, targetFull)
+      } else {
+        copyFileSync(bkFull, targetFull)
+        count++
+      }
+    }
+    return count
+  }
+
+  const count = walkRestore(resolve(backupDir), resolve(dir))
+  console.log(`[restore] ${count} files restored`)
+
 } else {
-  console.error('Usage: snapshot.mjs snapshot|compare ...')
+  console.error('Usage: snapshot.mjs snapshot|compare|backup|restore ...')
   process.exit(1)
 }

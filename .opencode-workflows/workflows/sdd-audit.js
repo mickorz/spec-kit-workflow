@@ -6,6 +6,7 @@ export const meta = {
 // 审计模式工作流：
 // 输入: specPath + projectPath → 输出: 逐需求审查报告
 // 不修改目标业务代码，不依赖 tasks.md/traceability.json
+// P0-D 只读保护：审计前备份源码，审计后检测修改并恢复
 
 const specPath = args.specPath
 const projectPath = args.projectPath
@@ -28,9 +29,10 @@ await check(
 )
 log('Spec 需求提取完成')
 
-// === Step 2: 代码快照（Before）—— P0-D 只读保护 ===
+// === Step 2: 代码快照 + 备份（Before）===
 phase('代码快照')
 const beforeSnapshot = `${outputDir}/snapshot-before.json`
+const backupDir = `${outputDir}/source-backup`
 await check(
   () => commandSuccess(
     `node sdd/tools/snapshot.mjs snapshot ${projectPath} ${beforeSnapshot}`,
@@ -38,7 +40,14 @@ await check(
   ),
   '代码快照（Before）失败'
 )
-log('代码快照（Before）完成')
+await check(
+  () => commandSuccess(
+    `node sdd/tools/snapshot.mjs backup ${projectPath} ${backupDir}`,
+    30000
+  ),
+  '代码备份失败'
+)
+log('代码快照 + 备份（Before）完成')
 
 // === Step 3: 运行测试获取证据 ===
 phase('测试执行')
@@ -121,7 +130,8 @@ const reviewPrompt = `你是独立的审计 Reviewer。你的职责是逐条核�
 - static_check 必须包含 fileRef（文件:行号引用）。
 - specHash 留空字符串。
 - 只写入 ${outputDir}/review.json，不要修改其他文件。
-禁止调用 workflow 工具。`
+禁止调用 workflow 工具。
+禁止修改 ${projectPath}/src/ 和 ${projectPath}/tests/ 下的任何文件。`
 
 const review = await agent(reviewPrompt, {
   label: 'Audit-Reviewer',
@@ -131,6 +141,36 @@ const review = await agent(reviewPrompt, {
 await check(() => review !== null, 'Reviewer 审查失败')
 await check(() => fileExists(`${outputDir}/review.json`), 'review.json 不存在')
 log('Reviewer 审查完成')
+
+// === Step 4.5: 代码完整性检测（P0-D 只读保护）===
+phase('代码完整性检测')
+const afterSnapshot = `${outputDir}/snapshot-after.json`
+await check(
+  () => commandSuccess(
+    `node sdd/tools/snapshot.mjs snapshot ${projectPath} ${afterSnapshot}`,
+    30000
+  ),
+  '代码快照（After）失败'
+)
+
+const codeUnchanged = await commandSuccess(
+  `node sdd/tools/snapshot.mjs compare ${beforeSnapshot} ${afterSnapshot}`,
+  30000
+)
+
+if (!codeUnchanged) {
+  log('代码完整性校验失败：源代码在审计过程中被修改，正在恢复...')
+  await check(
+    () => commandSuccess(
+      `node sdd/tools/snapshot.mjs restore ${backupDir} ${projectPath}`,
+      30000
+    ),
+    '源码恢复失败'
+  )
+  log('源码已从备份恢复（Reviewer 修改已撤销）')
+} else {
+  log('代码完整性校验通过：源代码未被修改')
+}
 
 // === Step 5: 审计收敛判定 ===
 phase('收敛判定')
@@ -148,30 +188,9 @@ if (convergeOk) {
   log('审计结果：存在缺口（详见 audit-report.json）')
 }
 
-// === Step 6: 代码完整性校验（P0-D 只读保护）===
-phase('代码完整性校验')
-const afterSnapshot = `${outputDir}/snapshot-after.json`
-await check(
-  () => commandSuccess(
-    `node sdd/tools/snapshot.mjs snapshot ${projectPath} ${afterSnapshot}`,
-    30000
-  ),
-  '代码快照（After）失败'
-)
-
-const codeUnchanged = await commandSuccess(
-  `node sdd/tools/snapshot.mjs compare ${beforeSnapshot} ${afterSnapshot}`,
-  30000
-)
-
-if (codeUnchanged) {
-  log('代码完整性校验通过：源代码未被修改')
-} else {
-  log('代码完整性校验失败：源代码在审计过程中被修改')
-}
-
 // === 输出 ===
-const status = convergeOk && codeUnchanged ? 'passed' : 'issues-found'
+const finalConverged = convergeOk && codeUnchanged
+const status = finalConverged ? 'passed' : 'issues-found'
 log(`审计结束：${status}`)
 
 return {
@@ -179,8 +198,8 @@ return {
   specPath,
   projectPath,
   outputDir,
-  converged: convergeOk,
+  converged: finalConverged,
   codeUnchanged,
   status,
-  output: `${feature} 审计${convergeOk ? '通过' : '发现缺口'}${codeUnchanged ? '' : '（代码被修改）'}`
+  output: `${feature} 审计${finalConverged ? '通过' : '发现缺口'}${codeUnchanged ? '' : '（代码被修改，已恢复）'}`
 }
