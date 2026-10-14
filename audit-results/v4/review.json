@@ -1,0 +1,154 @@
+{
+  "feature": "login",
+  "round": 1,
+  "specHash": "",
+  "reviewerLabel": "Audit-Reviewer",
+  "requirements": [
+    {
+      "id": "FR-001",
+      "status": "partial",
+      "evidenceRefs": ["AC-001", "AC-002", "AC-003", "AC-004", "AC-005"],
+      "verifications": [
+        { "ac": "AC-001", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-001", "type": "static_check", "result": "passed", "reason": "login() 密码校验通过后调用 createSession() 创建会话并返回 token，session 记录包含 username 与 expiresAt，凭证携带用户标识与过期时间", "fileRef": "src/auth.ts:204" },
+        { "ac": "AC-002", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-002", "type": "static_check", "result": "passed", "reason": "不存在的用户返回'用户名或密码错误'统一错误，不泄露用户名是否存在", "fileRef": "src/auth.ts:160" },
+        { "ac": "AC-003", "type": "static_check", "result": "passed", "reason": "disabled 为 true 的账号返回'账号已被禁用'提示", "fileRef": "src/auth.ts:166" },
+        { "ac": "AC-004", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-004", "type": "static_check", "result": "passed", "reason": "username 或 password 为空时返回'用户名和密码不能为空'", "fileRef": "src/auth.ts:152" },
+        { "ac": "AC-005", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-005", "type": "static_check", "result": "failed", "reason": "代码使用 Map.get(username) 硬编码大小写敏感查找，未提供可配置的大小写策略切换机制，未实现'策略为不区分时登录成功'的场景", "fileRef": "src/auth.ts:157" }
+      ],
+      "finding": "AC-005 仅实现了大小写敏感策略（Map 键查找天然区分大小写），缺少可配置的大小写策略切换机制。Spec 要求'按系统配置的大小写策略处理'，支持区分和不区分两种策略，代码仅支持区分大小写。"
+    },
+    {
+      "id": "FR-002",
+      "status": "pass",
+      "evidenceRefs": ["AC-006", "AC-007", "AC-008"],
+      "verifications": [
+        { "ac": "AC-006", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-006", "type": "static_check", "result": "passed", "reason": "密码错误时 user.failedAttempts += 1 累计失败计数，并返回'用户名或密码错误'", "fileRef": "src/auth.ts:215" },
+        { "ac": "AC-007", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-007", "type": "static_check", "result": "passed", "reason": "密码正确时 user.failedAttempts = 0 清零计数", "fileRef": "src/auth.ts:206" },
+        { "ac": "AC-008", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-008", "type": "static_check", "result": "passed", "reason": "密码错误仅返回'用户名或密码错误'，不包含哈希格式或算法信息", "fileRef": "src/auth.ts:228" }
+      ],
+      "finding": null
+    },
+    {
+      "id": "FR-003",
+      "status": "contradicts",
+      "evidenceRefs": ["AC-009", "AC-010", "AC-011", "AC-012"],
+      "verifications": [
+        { "ac": "AC-009", "type": "static_check", "result": "failed", "reason": "默认锁定阈值 DEFAULT_LOCK_THRESHOLD = 10，Spec AC-009 明确要求'默认 5 次'，代码实现为 10 次，直接矛盾。开发者注释亦承认'Spec 要求 5 次，代码实现 10 次'", "fileRef": "src/auth.ts:78" },
+        { "ac": "AC-010", "type": "static_check", "result": "passed", "reason": "锁定未到期时拒绝登录（返回锁定提示），不执行密码校验，失败计数不增加", "fileRef": "src/auth.ts:177" },
+        { "ac": "AC-011", "type": "static_check", "result": "passed", "reason": "updateLockConfig 使用 Math.max(MIN_LOCK_THRESHOLD, opts.threshold) 确保阈值下限为 3，低于 3 按 3 处理；仅对新触发的锁定生效", "fileRef": "src/auth.ts:354" },
+        { "ac": "AC-012", "type": "static_check", "result": "passed", "reason": "默认锁定时长 15*60*1000ms = 15 分钟；durationMs = 0 时 isPermanent = true 表示永久锁定", "fileRef": "src/auth.ts:79" }
+      ],
+      "finding": "AC-009 默认锁定阈值实现为 10（src/auth.ts:78），与 Spec 要求的'默认 5 次'直接矛盾。这意味着账号需要连续失败 10 次才触发锁定，而非 Spec 规定的 5 次，降低了防暴力破解能力。锁定机制本身（计数→达阈值→锁定→后续拒绝）逻辑正确，但默认阈值取值错误。"
+    },
+    {
+      "id": "FR-004",
+      "status": "pass",
+      "evidenceRefs": ["AC-013", "AC-014", "AC-015", "AC-016"],
+      "verifications": [
+        { "ac": "AC-013", "type": "static_check", "result": "passed", "reason": "锁定到期后 login() 自动清除 lockedAt、lockDurationMs 并将 failedAttempts 清零，继续向下执行密码校验，恢复可登录状态", "fileRef": "src/auth.ts:196" },
+        { "ac": "AC-014", "type": "static_check", "result": "passed", "reason": "使用 Date.now() >= user.lockedAt + duration 进行毫秒级判定，剩余时间不足 1 秒时仍 < 过期时间点，视为锁定中；满 1 倍时长后 >= 过期时间点，触发解锁", "fileRef": "src/auth.ts:175" },
+        { "ac": "AC-015", "type": "static_check", "result": "passed", "reason": "duration === 0 时 isPermanent = true，expired 永远为 false，永久锁定不会自动到期，仅 adminUnlock 可清除", "fileRef": "src/auth.ts:174" },
+        { "ac": "AC-016", "type": "static_check", "result": "passed", "reason": "锁定到期时清除 lockedAt/lockDurationMs/failedAttempts（行196-198），再次锁定时重新设置 lockedAt = Date.now() 和当前配置的 lockDurationMs（行220-222），每次锁定周期独立计算", "fileRef": "src/auth.ts:196" }
+      ],
+      "finding": null
+    },
+    {
+      "id": "FR-005",
+      "status": "contradicts",
+      "evidenceRefs": ["AC-017", "AC-018", "AC-019", "AC-020"],
+      "verifications": [
+        { "ac": "AC-017", "type": "static_check", "result": "passed", "reason": "adminUnlock 清除 lockedAt、lockDurationMs 并将 failedAttempts 归零，账号恢复可登录", "fileRef": "src/auth.ts:275" },
+        { "ac": "AC-018", "type": "static_check", "result": "passed", "reason": "users.get(username) 返回 undefined 时返回'账号不存在'错误，不修改任何状态", "fileRef": "src/auth.ts:269" },
+        { "ac": "AC-019", "type": "static_check", "result": "failed", "reason": "adminUnlock 无条件执行 user.failedAttempts = 0（行277），即使账号未锁定（wasLocked=false）也会重置失败计数。Spec AC-019 要求'失败计数不变'，代码行为直接矛盾。对于有失败计数但未达阈值锁定的账号，调用解锁会错误清零计数。", "fileRef": "src/auth.ts:277" },
+        { "ac": "AC-020", "type": "static_check", "result": "passed", "reason": "isAdmin(adminUser) 判定非管理员时返回'无权限'错误，拒绝执行", "fileRef": "src/auth.ts:263" }
+      ],
+      "finding": "AC-019 实现与 Spec 矛盾：adminUnlock 对未锁定账号也无条件执行 user.failedAttempts = 0（src/auth.ts:277），Spec 要求'账号状态与失败计数不变'。正确实现应仅对已锁定账号重置失败计数，未锁定账号保持计数不变。"
+    },
+    {
+      "id": "FR-006",
+      "status": "partial",
+      "evidenceRefs": ["AC-021", "AC-022", "AC-023"],
+      "verifications": [
+        { "ac": "AC-021", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-021", "type": "static_check", "result": "passed", "reason": "hashPassword 使用 randomBytes(16) 生成随机盐值 + scryptSync 慢哈希，存储格式 scrypt$saltHex$hashHex，不含明文，相同明文因不同盐产生不同哈希", "fileRef": "src/auth.ts:103" },
+        { "ac": "AC-022", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-022", "type": "static_check", "result": "passed", "reason": "verifyPassword 使用相同 scrypt 参数和盐值对输入密码做哈希后用 timingSafeEqual 常量时间比较", "fileRef": "src/auth.ts:114" },
+        { "ac": "AC-023", "type": "static_check", "result": "failed", "reason": "哈希算法硬编码为 scrypt（SCRYPT_N/R/P 常量），无配置切换机制；无迁移策略代码；无旧算法兼容校验逻辑。代码注释仅说明'如需替换修改两个函数'，但未实现可配置替换。", "fileRef": "src/auth.ts:69" }
+      ],
+      "finding": "AC-023 未实现：哈希算法与盐值生成方式不可配置替换（硬编码 scrypt），无迁移策略，无旧算法兼容校验。Spec 要求'可配置替换'且'替换后历史账号需按迁移策略重新设置密码或支持旧算法兼容校验'。"
+    },
+    {
+      "id": "FR-007",
+      "status": "partial",
+      "evidenceRefs": ["AC-024", "AC-025", "AC-026", "AC-027"],
+      "verifications": [
+        { "ac": "AC-024", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-024", "type": "static_check", "result": "passed", "reason": "createSession 创建带 expiresAt 的会话，verifyToken 在过期前返回 valid: true", "fileRef": "src/auth.ts:298" },
+        { "ac": "AC-025", "type": "static_check", "result": "passed", "reason": "verifyToken 在 Date.now() >= session.expiresAt 时返回 { valid: false, expired: true }，标识凭证过期。注：API 契约返回类型不含 message 字段，'登录已过期'提示属上层 HTTP 路由职责。", "fileRef": "src/auth.ts:306" },
+        { "ac": "AC-026", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-026", "type": "static_check", "result": "passed", "reason": "logout 设置 session.revoked = true，verifyToken 检查 revoked 返回 invalid", "fileRef": "src/auth.ts:290" },
+        { "ac": "AC-027", "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": "AC-027", "type": "static_check", "result": "failed", "reason": "createSession 每次创建新会话，仅支持允许多会话策略，未实现'后者挤掉前者'策略，无会话策略配置机制。Spec 要求'策略可配置'。", "fileRef": "src/auth.ts:129" }
+      ],
+      "finding": "AC-027 仅实现'允许多会话'策略，缺少可配置的会话策略切换机制。Spec 要求支持'允许多会话或后者挤掉前者'两种策略且策略可配置，代码硬编码为允许多会话。"
+    },
+    {
+      "id": "NFR-001",
+      "status": "partial",
+      "evidenceRefs": [],
+      "verifications": [
+        { "ac": null, "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": null, "type": "static_check", "result": "passed", "reason": "使用 scrypt 带盐慢哈希（N=16384, r=8, p=1），randomBytes(16) 随机盐，非明文/可逆/无盐哈希", "fileRef": "src/auth.ts:103" },
+        { "ac": null, "type": "static_check", "result": "failed", "reason": "scrypt 参数硬编码为常量（SCRYPT_N/R/P），无可配置的哈希计算开销下限。Spec 要求'单次校验耗时不低于可配置下限（默认 100ms）'，代码未实现此可配置下限机制。", "fileRef": "src/auth.ts:69" }
+      ],
+      "finding": "密码使用 scrypt 带盐慢哈希，满足算法要求；但 Spec 要求的'可配置哈希计算开销下限（默认 100ms）'未实现，scrypt 参数为硬编码常量，无法动态调整计算开销。"
+    },
+    {
+      "id": "NFR-002",
+      "status": "unverified",
+      "evidenceRefs": [],
+      "verifications": [
+        { "ac": null, "type": "static_check", "result": "passed", "reason": "登录主流程为 Map 查找 + scrypt 校验 + 计数更新，逻辑简单；锁定判定为内存比较，不涉及 IO，不会显著拖慢主流程", "fileRef": "src/auth.ts:150" }
+      ],
+      "finding": "无性能测试证据。代码逻辑简单（内存 Map 操作），但 scrypt N=16384 的实际耗时依赖硬件，未进行 95/99 分位响应时间测量。Spec 要求 95 分位 <=500ms、99 分位 <=1000ms，无法通过代码审查确认是否满足。"
+    },
+    {
+      "id": "NFR-003",
+      "status": "partial",
+      "evidenceRefs": [],
+      "verifications": [
+        { "ac": null, "type": "static_check", "result": "passed", "reason": "updateLockConfig 支持运行时动态调整 threshold 和 durationMs，无需重启服务", "fileRef": "src/auth.ts:352" },
+        { "ac": null, "type": "static_check", "result": "failed", "reason": "未实现基于 IP 的登录失败频率限制。Spec 要求'系统应支持基于 IP 的登录失败频率限制（可选增强），对同一 IP 短时间内大量失败请求进行限流或临时封禁'，代码无 IP 维度的限流或封禁逻辑。", "fileRef": "src/auth.ts:150" }
+      ],
+      "finding": "单账号失败锁定机制已实现（但默认阈值与 Spec 矛盾，见 FR-003）；锁定参数可动态调整。缺少基于 IP 的登录失败频率限制（Spec 标注为可选增强但要求'系统应支持'）。"
+    },
+    {
+      "id": "NFR-004",
+      "status": "partial",
+      "evidenceRefs": [],
+      "verifications": [
+        { "ac": null, "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": null, "type": "static_check", "result": "passed", "reason": "audit() 记录 timestamp/username/ip/event/result，覆盖 login_success、login_failed（含失败次数）、lock_triggered、auto_unlock、admin_unlock、logout 事件", "fileRef": "src/auth.ts:91" },
+        { "ac": null, "type": "static_check", "result": "failed", "reason": "审计日志存储在内存数组 auditLogEntries，无持久化、无 90 天保留策略（resetState 或进程重启即丢失）；admin_unlock 和 logout 事件 IP 字段为空字符串（行278、行291）；getAuditLogs 返回副本防止 API 层篡改，但模块级无防篡改机制", "fileRef": "src/auth.ts:88" }
+      ],
+      "finding": "审计日志覆盖所有要求的事件类型且包含时间戳、账号标识、来源 IP（登录事件）、事件类型与结果。但存在以下缺口：(1) 日志仅存内存无持久化，不满足保留期不少于 90 天；(2) admin_unlock 与 logout 事件来源 IP 为空；(3) 无防篡改机制（模块级数组无保护）。"
+    },
+    {
+      "id": "NFR-005",
+      "status": "pass",
+      "evidenceRefs": [],
+      "verifications": [
+        { "ac": null, "type": "automated_test", "testId": "tests/auth.test.ts (15 tests)", "result": "passed" },
+        { "ac": null, "type": "static_check", "result": "passed", "reason": "所有登录错误提示均为业务级消息（'用户名和密码不能为空'、'用户名或密码错误'、'账号已被禁用'、'账号已锁定请于X分钟后重试'），不含哈希算法、密码格式、数据库错误等技术细节。'账号已被禁用'为 AC-003 明确要求的业务消息。", "fileRef": "src/auth.ts:228" }
+      ],
+      "finding": null
+    }
+  ]
+}

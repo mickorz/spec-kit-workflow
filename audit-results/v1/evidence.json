@@ -1,0 +1,50 @@
+{
+  "feature": "audit",
+  "round": 1,
+  "timestamp": "2026-10-14T03:58:45.670Z",
+  "build": {
+    "passed": true,
+    "output": ""
+  },
+  "tests": {
+    "passed": 34,
+    "failed": 0,
+    "total": 34,
+    "results": [
+      {
+        "name": "tests/auth.test.ts (34 tests)",
+        "status": "passed"
+      },
+      {
+        "name": "FR-004 锁定状态判定与恢复 > AC-016 多次锁定周期独立，时长不叠加",
+        "status": "passed"
+      }
+    ]
+  },
+  "status": "passed",
+  "failures": [],
+  "fileHashes": [
+    {
+      "file": "src/auth.ts",
+      "hash": "sha256-c133636c52a6f0ea80caa9a8f3b3dce1e486b823231cae88ec107e62e58f4f2e"
+    },
+    {
+      "file": "src/index.ts",
+      "hash": "sha256-7992a39d6cde5e050eb78461a8bf9ad986175a94826e835c110b3967290bd249"
+    },
+    {
+      "file": "tests/auth.test.ts",
+      "hash": "sha256-34b1cde8c29c0430c888b4b85a1c7a4dc9166ab348bdacfce57631c66cd079b2"
+    }
+  ],
+  "testResults": [
+    {
+      "name": "tests/auth.test.ts (34 tests)",
+      "status": "passed"
+    },
+    {
+      "name": "FR-004 锁定状态判定与恢复 > AC-016 多次锁定周期独立，时长不叠加",
+      "status": "passed"
+    }
+  ]
+}

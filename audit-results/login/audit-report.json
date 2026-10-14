@@ -1,0 +1,426 @@
+{
+  "converged": false,
+  "timestamp": "2026-10-14T03:55:10.831Z",
+  "specPath": "E:\\WorkProjects\\spec-kit-workflow\\specs\\login\\spec.md",
+  "projectPath": "E:\\WorkProjects\\spec-kit-workflow\\fixtures\\login-app",
+  "conditions": {
+    "C1": {
+      "passed": true
+    },
+    "C2": {
+      "passed": true
+    },
+    "C3": {
+      "passed": false,
+      "details": [
+        "NFR-004: partial - Spec 要求所有审计日志包含来源 IP, 但 AUTO_UNLOCK(lockout-service.ts:116 传 undefined)、ADMIN_UNLOCK(lockout-service"
+      ]
+    },
+    "C4": {
+      "passed": true
+    },
+    "C5": {
+      "passed": true
+    },
+    "C7": {
+      "passed": true
+    }
+  },
+  "requirements": [
+    {
+      "id": "FR-001",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-001",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts login() 密码匹配后调用 sessionService.create() 返回 token/expiresIn/expiresAt/user; session-service.ts JWT payload 含 sub(user标识)/exp(过期时间)/jti/iat; 测试 login.test.ts:16-42 验证返回有效 Token 且 payload 含用户标识与过期时间",
+          "fileRef": "src/services/auth-service.ts:106"
+        },
+        {
+          "ac": "AC-002",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts 用户不存在时抛 AppError('INVALID_CREDENTIALS',401,'用户名或密码错误'); 与密码错误返回相同 code 和 message, 不泄露用户名是否存在; 测试 login.test.ts:46-63 验证不存在的用户与密码错误返回相同错误提示",
+          "fileRef": "src/services/auth-service.ts:72"
+        },
+        {
+          "ac": "AC-003",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts user.status==='disabled' 时抛 AppError('ACCOUNT_DISABLED',403,'账号已被禁用'); 测试 login.test.ts:65-77 验证禁用账号返回正确提示",
+          "fileRef": "src/services/auth-service.ts:77"
+        },
+        {
+          "ac": "AC-004",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "login-schema.ts zod 校验 username/password 各 min(1), 失败时 login.ts handler 抛 AppError('VALIDATION_ERROR',400,'用户名和密码不能为空'); 测试 login.test.ts:79-105 验证空字段/缺失字段/有效输入各场景",
+          "fileRef": "src/schemas/login-schema.ts:3"
+        },
+        {
+          "ac": "AC-005",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts 通过 authConfig.isCaseSensitive() 传递大小写选项给 userRepo.findByUsername(); user-repository.ts 按 caseSensitive 标志决定是否 toLowerCase 比对; auth-config.ts 默认区分大小写(true)且可配置; 测试 login.test.ts:107-128 验证区分大小写登录失败+不区分大小写登录成功",
+          "fileRef": "src/services/auth-service.ts:58"
+        }
+      ]
+    },
+    {
+      "id": "FR-002",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-006",
+        "AC-007",
+        "AC-008"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-006",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts 密码不匹配时调用 lockoutService.recordFailure(user.id, ip) 累加失败计数, 然后抛 INVALID_CREDENTIALS(401,'用户名或密码错误'); lockout-service.ts recordFailure() 执行 failedAttempts+=1; 测试 password-error.test.ts:13-41 验证单次和多次失败计数正确累加",
+          "fileRef": "src/services/auth-service.ts:87"
+        },
+        {
+          "ac": "AC-007",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts 登录成功时调用 lockoutService.resetFailures(user.id); lockout-service.ts resetFailures() 设置 failedAttempts=0; 测试 password-error.test.ts:43-73 验证一次失败后成功计数清零+多次失败后成功计数清零",
+          "fileRef": "src/services/auth-service.ts:102"
+        },
+        {
+          "ac": "AC-008",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "密码错误时仅返回 ErrorMessages.INVALID_CREDENTIALS='用户名或密码错误', 不含 hash/bcrypt/salt/格式/盐 等技术信息; 测试 password-error.test.ts:75-95 验证错误消息不含技术关键词且用户不存在与密码错误返回相同提示",
+          "fileRef": "src/utils/error-messages.ts:2"
+        }
+      ]
+    },
+    {
+      "id": "FR-003",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-009",
+        "AC-010",
+        "AC-011",
+        "AC-012"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-009",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-service.ts recordFailure() 当 failedAttempts>=threshold 且 lockedAt===null 时设置 lockedAt/lockDurationMs 并记录 LOCK_TRIGGERED; auth-service.ts 锁定时抛 ACCOUNT_LOCKED(403) 含 accountLockedMessage(remainingMinutes)='账号已锁定,请于X分钟后重试'; 测试 lockout-auto.test.ts:16-68 验证达阈值锁定+锁定提示+后续请求被拒+审计日志",
+          "fileRef": "src/services/lockout-service.ts:50"
+        },
+        {
+          "ac": "AC-010",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts:62-69 在密码校验前先调用 checkLockStatus, 锁定时直接抛 ACCOUNT_LOCKED 不进入密码校验逻辑, 因此 recordFailure 不会被调用, 失败计数不增加; 测试 lockout-auto.test.ts:70-99 验证锁定期间正确密码被拒且计数不变+错误密码计数也不变",
+          "fileRef": "src/services/auth-service.ts:63"
+        },
+        {
+          "ac": "AC-011",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-config.ts getThreshold() 返回 Math.max(raw,3), setThreshold() 也强制 Math.max(value,3), 默认值5; DynamicConfig 支持运行时调整无需重启; 测试 lockout-auto.test.ts:101-146 验证阈值可配置/最小3/低于3按3处理/默认5/动态调整",
+          "fileRef": "src/config/lockout-config.ts:7"
+        },
+        {
+          "ac": "AC-012",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-config.ts getDurationMinutes() 默认15, setDurationMinutes() 可配置; durationMinutes===0 时 isPermanentLock()=true, lockout-service.ts recordFailure 设置 permanent=true 且 lockDurationMs=0; 测试 lockout-auto.test.ts:148-196 验证默认15分钟/可配置/0为永久锁定+永久锁定提示",
+          "fileRef": "src/config/lockout-config.ts:15"
+        }
+      ]
+    },
+    {
+      "id": "FR-004",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-013",
+        "AC-014",
+        "AC-015",
+        "AC-016"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-013",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-service.ts checkLockStatus() 计算 remaining=lockDurationMs-elapsed, remaining<=0 时调用 unlockInternal(清零 lockedAt/lockDurationMs/permanent/failedAttempts) 并记录 AUTO_UNLOCK; 测试 lockout-status.test.ts:15-52 验证到期自动解锁+计数清零+可正常登录",
+          "fileRef": "src/services/lockout-service.ts:106"
+        },
+        {
+          "ac": "AC-014",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-service.ts checkLockStatus() 中 remaining>0 时返回 locked=true; 剩余500ms/1ms 时仍锁定, remaining=0(elapsed==lockDurationMs) 时解锁; 测试 lockout-status.test.ts:54-99 验证不足1秒仍锁定+满时长解锁+1ms剩余仍锁定",
+          "fileRef": "src/services/lockout-service.ts:110"
+        },
+        {
+          "ac": "AC-015",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-service.ts checkLockStatus() 中 lock.permanent===true 时直接返回 {locked:true,permanent:true} 不检查到期; adminUnlock() 可清除 permanent 标志; 测试 lockout-status.test.ts:101-149 验证永久锁定1年仍锁定+正确密码被拒+管理员解锁恢复",
+          "fileRef": "src/services/lockout-service.ts:102"
+        },
+        {
+          "ac": "AC-016",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-service.ts unlockInternal() 重置 lockedAt=null/lockDurationMs=0; 重新锁定时 lockedAt=clock.now()/lockDurationMs=config.getDurationMs(), 每次独立计算不叠加; 测试 lockout-status.test.ts:151-209 和 lockout-auto.test.ts:198-218 验证多次锁定周期独立+时长不叠加+lockedAt每次重设",
+          "fileRef": "src/services/lockout-service.ts:123"
+        }
+      ]
+    },
+    {
+      "id": "FR-005",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-017",
+        "AC-018",
+        "AC-019",
+        "AC-020"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-017",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "admin-unlock.ts handler 校验账号存在后调用 lockoutService.adminUnlock(userId); lockout-service.ts adminUnlock() 清除 lockedAt/lockDurationMs/permanent/failedAttempts 并记录 ADMIN_UNLOCK 审计日志; 测试 admin-unlock.test.ts:42-80 验证解锁后状态清除+计数归零+恢复可登录+审计日志",
+          "fileRef": "src/handlers/admin-unlock.ts:18"
+        },
+        {
+          "ac": "AC-018",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "admin-unlock.ts handler 调用 userRepo.exists(userId), 不存在时抛 AppError('ACCOUNT_NOT_FOUND',404,'账号不存在'); 测试 admin-unlock.test.ts:82-103 验证返回正确错误码和消息且不产生副作用",
+          "fileRef": "src/handlers/admin-unlock.ts:14"
+        },
+        {
+          "ac": "AC-019",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "lockout-service.ts adminUnlock() 对未锁定账号也执行清除操作(将已为null/0/false的值重新赋为null/0/false), 幂等无异常; 测试 admin-unlock.test.ts:105-128 验证未锁定账号解锁不报错+多次调用结果一致",
+          "fileRef": "src/services/lockout-service.ts:136"
+        },
+        {
+          "ac": "AC-020",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-middleware.ts requireRole('admin') 检查 req.user.roles 是否含 'admin', 不含则返回 403 FORBIDDEN('无权限') 且不调用 next(); index.ts 解锁路由挂载 authenticate+requireRole('admin') 双中间件; 测试 admin-unlock.test.ts:130-172 验证非管理员被拒+管理员通过+无Token被拒",
+          "fileRef": "src/middleware/auth-middleware.ts:45"
+        }
+      ]
+    },
+    {
+      "id": "FR-006",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-021",
+        "AC-022",
+        "AC-023"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-021",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "bcrypt-hasher.ts hash() 使用 bcrypt.genSalt(costFactor) 生成随机盐再 bcrypt.hash(plain,salt), 相同明文因随机盐产生不同哈希; User 模型字段为 passwordHash 不存明文; PasswordStorageValidator 拒绝明文/无盐MD5/SHA1; 测试 password-security.test.ts:37-65 验证哈希不含明文+相同密码不同哈希+validator格式校验",
+          "fileRef": "src/services/bcrypt-hasher.ts:19"
+        },
+        {
+          "ac": "AC-022",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "auth-service.ts 检测存储哈希算法后调用 hasher.verify(password, storedHash); bcrypt-hasher.ts verify() 使用 bcrypt.compare(plain,hash) 比对, 匹配返回true; 测试 password-security.test.ts:67-91 验证正确密码匹配+错误密码不匹配+多次验证一致",
+          "fileRef": "src/services/auth-service.ts:84"
+        },
+        {
+          "ac": "AC-023",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "password-hasher.ts PasswordHasherRegistry 支持多算法注册/setDefaultAlgorithm/哈希前缀detectAlgorithm; password-migration.ts migrateIfNeeded 检测旧算法→旧hasher验证→新hasher重新哈希→userRepo.save 更新; auth-service.ts:104 登录成功后调用 migrateIfNeeded; 测试 password-security.test.ts:93-244 验证registry/算法切换/完整迁移路径/登录触发迁移/密码错误不迁移",
+          "fileRef": "src/services/password-hasher.ts:7"
+        }
+      ]
+    },
+    {
+      "id": "FR-007",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-024",
+        "AC-025",
+        "AC-026",
+        "AC-027"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-024",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "session-service.ts create() 生成 JWT 含 sub/jti/iat/exp/roles; verify() 校验签名+过期+吊销列表返回 payload; auth-middleware.ts authenticate 中间件调用 verify 通过则设 req.user; 测试 session.test.ts:16-50 验证凭证过期前有效+payload含用户标识和过期时间+expiresIn/expiresAt正确",
+          "fileRef": "src/services/session-service.ts:44"
+        },
+        {
+          "ac": "AC-025",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "session-service.ts verify() 捕获 jwt.TokenExpiredError 抛 AppError('TOKEN_EXPIRED',401,'登录已过期，请重新登录'); 测试 session.test.ts:52-81 验证过期凭证失效+返回正确错误码和消息",
+          "fileRef": "src/services/session-service.ts:84"
+        },
+        {
+          "ac": "AC-026",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "logout.ts handler 调用 sessionService.revoke(jti,userId); session-service.ts revoke() 将 jti 加入 TokenRevocationList 并从 ActiveSessionRegistry 删除; verify() 检查吊销列表抛 TOKEN_REVOKED; 测试 session.test.ts:83-129 验证登出后凭证失效+后续请求被拒+审计日志",
+          "fileRef": "src/handlers/logout.ts:14"
+        },
+        {
+          "ac": "AC-027",
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "session-config.ts SessionPolicy='ALLOW_MULTI'|'SINGLE_SESSION' 可通过 getSessionPolicy/setSessionPolicy 配置; session-service.ts create() SINGLE_SESSION 时将旧 jti 加入吊销列表再注册新 jti; ALLOW_MULTI 时不吊销; 测试 session.test.ts:131-179 验证多Token有效+新登录吊销旧Token+策略动态切换",
+          "fileRef": "src/services/session-service.ts:60"
+        }
+      ]
+    },
+    {
+      "id": "NFR-001",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "使用 bcrypt 带盐慢哈希(bcrypt-hasher.ts:19-22 genSalt+hash), 非明文/非可逆加密/非无盐MD5/SHA1; BcryptHasher 构造函数强制 costFactor=Math.max(costFactor,10)(bcrypt-hasher.ts:8); PasswordConfig.getMinHashTimeMs() 可配置默认100ms(password-config.ts:23-25); BcryptHasher.meetsMinTime() 可校验耗时是否达标(bcrypt-hasher.ts:34-37); PasswordStorageValidator 拒绝明文/无盐MD5/SHA1(password-storage-validator.ts:7-24); 测试 password-security.test.ts:246-312 验证cost最低10/耗时下限/config可配/meetsMinTime/validator各类拒绝",
+          "fileRef": "src/services/bcrypt-hasher.ts:8"
+        }
+      ]
+    },
+    {
+      "id": "NFR-002",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "PerformanceMiddleware(performance-middleware.ts:14-37) 记录每请求耗时到 samples 数组; getPercentile() 排序后按分位计算(performance-middleware.ts:43-51); 测试 performance.test.ts:68-110 用20样本断言 P95<=500ms/P99<=1000ms; checkLockStatus 为内存 Map 查询(lockout-service.ts:96-118), 测试验证10000次调用<500ms; cost factor 可配置以调优生产性能; recordFailure 也为内存操作不涉及IO",
+          "fileRef": "src/middleware/performance-middleware.ts:43"
+        }
+      ]
+    },
+    {
+      "id": "NFR-003",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "单账号失败锁定由 lockout-service.ts 实现(FR-003); IP 维度限流 ip-rate-limiter.ts 支持 maxFailures/windowMs/banMs 配置, isAllowed/recordFailure/isBanned 完整; 锁定参数(lockout-config.ts)和限流参数(ip-rate-limiter.ts:20-30)均通过 DynamicConfig 运行时调整(dynamic-config.ts set/get)无需重启; 测试 ip-rate-limit.test.ts 覆盖 IP限流/封禁/到期恢复/不同IP独立/窗口重置/动态调参/单账号锁定/IP与账号独立",
+          "fileRef": "src/middleware/ip-rate-limiter.ts:12"
+        }
+      ]
+    },
+    {
+      "id": "NFR-004",
+      "status": "partial",
+      "finding": "Spec 要求所有审计日志包含来源 IP, 但 AUTO_UNLOCK(lockout-service.ts:116 传 undefined)、ADMIN_UNLOCK(lockout-service.ts:143 传 undefined)、LOGOUT(session-service.ts:108 传 undefined) 三类事件的 ip 字段为 undefined。admin-unlock.ts handler 和 logout.ts handler 均可从 req.ip 获取来源 IP 但未传递给 service 层; checkLockStatus 在 auth-service.ts:63 调用时 input.ip 可用但未传入。测试 audit.test.ts 未对这三类事件的 ip 字段做断言, 缺少覆盖。",
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "6种审计事件类型均有 AuditEventType 枚举(audit-log-entry.ts:1-8); AuditLogEntry 含 ts/userId/ip/eventType/result 字段(audit-log-entry.ts:10-17); LOGIN_SUCCESS(auth-service.ts:108)、LOGIN_FAILED(auth-service.ts:73/91/94/98)、LOCK_TRIGGERED(lockout-service.ts:56) 日志含 IP; getEntries 返回 Object.freeze 不可变副本(audit-service.ts:38-39) 防篡改; 保留期默认90天(audit-service.ts:4) 且 pruneExpired 可清理过期; 测试 audit.test.ts 覆盖全部事件类型/日志格式/防篡改/保留策略",
+          "fileRef": "src/services/audit-service.ts:20"
+        }
+      ]
+    },
+    {
+      "id": "NFR-005",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "static_check",
+          "testId": null,
+          "result": "passed",
+          "reason": "ErrorMessages 全部为业务级提示(error-messages.ts:1-15), 不含 sql/database/hash/bcrypt/salt/stack/trace 等技术词; 不存在用户与密码错误返回相同 code+message(INVALID_CREDENTIALS); error-handler.ts 非 AppError 统一返回 INTERNAL_ERROR('系统繁忙,请稍后重试'); 审计日志 meta 不含明文密码和哈希值; 测试 error-leak.test.ts 覆盖用户不存在/密码错误/禁用账号/参数校验/审计日志各场景不泄露内部信息+错误码消息映射检查",
+          "fileRef": "src/utils/error-messages.ts:1"
+        }
+      ]
+    }
+  ],
+  "fullyImplemented": false,
+  "summary": {
+    "totalRequirements": 12,
+    "statusCounts": {
+      "pass": 11,
+      "partial": 1
+    },
+    "fullyImplemented": false
+  }
+}

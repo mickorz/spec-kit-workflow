@@ -1,0 +1,31 @@
+{
+  "dir": "E:\\WorkProjects\\spec-kit-workflow\\audit-fixtures\\v4-contradicts-fr003",
+  "timestamp": "2026-10-14T04:28:40.420Z",
+  "fileCount": 6,
+  "files": [
+    {
+      "file": "package-lock.json",
+      "hash": "sha256-889477b85edfcade03e3166b7ece92aae9e8a0145233da9de968fae282b25463"
+    },
+    {
+      "file": "package.json",
+      "hash": "sha256-6f4843187dacb71efba128bfb6d6753204a5a758d9dc7f55ef914bdee5c8e67f"
+    },
+    {
+      "file": "src/auth.ts",
+      "hash": "sha256-00f0f5b7a4d4cacc57e7876dd5c0b3351ef20f5cded618f602a68aa151bc555b"
+    },
+    {
+      "file": "src/index.ts",
+      "hash": "sha256-7992a39d6cde5e050eb78461a8bf9ad986175a94826e835c110b3967290bd249"
+    },
+    {
+      "file": "tests/auth.test.ts",
+      "hash": "sha256-aba2cd4ba18d81b631e8e160f731be56dcd76ab9b08cc467359c781b42274629"
+    },
+    {
+      "file": "tsconfig.json",
+      "hash": "sha256-f5f091fd5fc4e321aaaf32ff8cac0c4bf817870e8320fc15f780d55eddf408b8"
+    }
+  ]
+}

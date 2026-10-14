@@ -1,0 +1,195 @@
+{
+  "dir": "E:\\WorkProjects\\spec-kit-workflow\\fixtures\\login-app",
+  "timestamp": "2026-10-14T03:53:29.572Z",
+  "fileCount": 47,
+  "files": [
+    {
+      "file": "package-lock.json",
+      "hash": "sha256-06b5ab084054dc32fa7e5f6ef393616c3cda5f03513fd35e3df6f4570947d756"
+    },
+    {
+      "file": "package.json",
+      "hash": "sha256-67b970a3eb0817157e6ef9c28050ecce3e5a0fe655bc874a34611509da048448"
+    },
+    {
+      "file": "src/config/auth-config.ts",
+      "hash": "sha256-56e16de79be8fc031c1af53defd29f5205c89e13bb89765d24200bee90752558"
+    },
+    {
+      "file": "src/config/dynamic-config.ts",
+      "hash": "sha256-3cf67ac22935fa062263374f8627661880e20f1f96db07146493e285a8ba8b5d"
+    },
+    {
+      "file": "src/config/lockout-config.ts",
+      "hash": "sha256-bd205e6219191e4442b26f64297f83093a5a67a0d4c901db64b17ccfe99cae38"
+    },
+    {
+      "file": "src/config/password-config.ts",
+      "hash": "sha256-ab4ba1596563668bb444ca25a4e0a2372cb317e53bea401d34132615e0c10567"
+    },
+    {
+      "file": "src/config/session-config.ts",
+      "hash": "sha256-5616e23e3a518eb87f3d7cb642bcbcd68b29676ce4e28f5978cdd1e76caf4033"
+    },
+    {
+      "file": "src/handlers/admin-unlock.ts",
+      "hash": "sha256-b6f57d4e032ade2bfdc571cfedaa17eb8239e52f71a94a2345573dddee91aceb"
+    },
+    {
+      "file": "src/handlers/login.ts",
+      "hash": "sha256-94e4d3e73b6e30f559828e149f763e9b5d0659b69eb30a555169996f032544f3"
+    },
+    {
+      "file": "src/handlers/logout.ts",
+      "hash": "sha256-145208c216edfb50c2dee7770a24d485319f5285b59287a96b961de95bd43b44"
+    },
+    {
+      "file": "src/index.ts",
+      "hash": "sha256-43ccb963da48969a308ea438dafc2aff33d58c95a5d03c462ea987aa9e4fa4d2"
+    },
+    {
+      "file": "src/middleware/auth-middleware.ts",
+      "hash": "sha256-a6c11316de07a901d6f81519c3336887bce552063308e381efa4bf8cb2aa8889"
+    },
+    {
+      "file": "src/middleware/error-handler.ts",
+      "hash": "sha256-4a3f65f4a03b2dd025a22bb10145065f69e003d9e2f5bb8ddb5ef5ce1ccd6d9c"
+    },
+    {
+      "file": "src/middleware/ip-rate-limiter.ts",
+      "hash": "sha256-bbd65245f230fbcbf23d2a50a0962405eb9c5df9a5cbb47abc33db356d6b8ead"
+    },
+    {
+      "file": "src/middleware/performance-middleware.ts",
+      "hash": "sha256-e01bfa3211a2f171b293f4bfb78b71dce7448f2fb4d4c01af6614038b4752498"
+    },
+    {
+      "file": "src/models/account-lock.ts",
+      "hash": "sha256-120e68913dd502331302fbe33ba77f56983a27cf3a423d6a9c3aa77741a149ae"
+    },
+    {
+      "file": "src/models/active-session-registry.ts",
+      "hash": "sha256-e8a144ccb3655993bdc2288b4c7cb197d16393f1e81c6aa2f8bcf48763aa619e"
+    },
+    {
+      "file": "src/models/audit-log-entry.ts",
+      "hash": "sha256-5e044b9c4ab54264bd133ecab226c7d0e0ac221100a5a8b89bed6108cc6cf7d3"
+    },
+    {
+      "file": "src/models/token-revocation-list.ts",
+      "hash": "sha256-bd9c25f3df9fed020f394b1f406c6d25eacc763ac32ae571f7653bbc928ab4a6"
+    },
+    {
+      "file": "src/models/user.ts",
+      "hash": "sha256-22464ecbf60dd2dcabddb2b54055fe6515606c56ce11516a74e77f446777068d"
+    },
+    {
+      "file": "src/repositories/account-lock-store.ts",
+      "hash": "sha256-9a8f7094aa66bf2a49cb411be7b221b987fce0dbfd1cb7b291509fe8bfcc70ab"
+    },
+    {
+      "file": "src/repositories/user-repository.ts",
+      "hash": "sha256-7800c5d11d029c428f4afcd6e0356329a7a88c257c52b3785fa7932757a16d80"
+    },
+    {
+      "file": "src/schemas/login-schema.ts",
+      "hash": "sha256-985bfcfc52eac3acef77a841b4dadcdecc157ddc1c8dca0b52758f9e1d2cebe0"
+    },
+    {
+      "file": "src/services/audit-service.ts",
+      "hash": "sha256-4d907e9f233b91aa6ce3b65be5e105fde93dc8ecae715af36084d67bdc4c53c5"
+    },
+    {
+      "file": "src/services/auth-service.ts",
+      "hash": "sha256-fec499cf020a22807bdc1db8b71ef0882b8f11a5b6caa19d66ba28c809b1ac29"
+    },
+    {
+      "file": "src/services/bcrypt-hasher.ts",
+      "hash": "sha256-0af2d8f7c86c739980f4b4201264bac5c323130b92ee1518f28417daba65332f"
+    },
+    {
+      "file": "src/services/lockout-service.ts",
+      "hash": "sha256-52c734813acdd6d2dbf1f89f72e295d1bb8923dd049f180c5bc53a964f817324"
+    },
+    {
+      "file": "src/services/password-hasher.ts",
+      "hash": "sha256-88d394c0390b84cc46600e67f23bce542e6a4f98b95f18bf34f2f404d58bcb0f"
+    },
+    {
+      "file": "src/services/password-migration.ts",
+      "hash": "sha256-73858403e9e6955614d6fbf17059db84b957825bbe60309a7770461eae672fc0"
+    },
+    {
+      "file": "src/services/session-service.ts",
+      "hash": "sha256-1180cbff54aaa14d76601539612f0e7f0b30ca1e1f3a68193a8e60dfa9484afe"
+    },
+    {
+      "file": "src/utils/app-error.ts",
+      "hash": "sha256-9542b61b5ac9fea405367234705e65f4e3e052957d2896abd9917407a79fdd42"
+    },
+    {
+      "file": "src/utils/clock.ts",
+      "hash": "sha256-e10ff5bf6e42134444535f71f22b16607a8f244ef7ff313ba46e8415db0612a3"
+    },
+    {
+      "file": "src/utils/error-messages.ts",
+      "hash": "sha256-fcf582c3c3e9f950d4b1a00c0a15478d0feaf74742a1710fb36ca4ead5562f78"
+    },
+    {
+      "file": "src/utils/password-storage-validator.ts",
+      "hash": "sha256-f7552cfa9dca0c400e6131b423030970efaea86c1d05b9aef6e9dd704fcf1744"
+    },
+    {
+      "file": "tests/admin-unlock.test.ts",
+      "hash": "sha256-eca821ae3573cdc0e7abb9ee064372730420320a07766bed798d0db9b9a06b27"
+    },
+    {
+      "file": "tests/audit.test.ts",
+      "hash": "sha256-e28ee36a66c0f9c60e85f8161d735b1844a30d2e88f44f8a96a708f53b2d63d8"
+    },
+    {
+      "file": "tests/error-leak.test.ts",
+      "hash": "sha256-755040f7349030fb33d1af89f9c18b92880cadfd39c729cdbc51d3e2a2a2437f"
+    },
+    {
+      "file": "tests/helpers/test-setup.ts",
+      "hash": "sha256-ef21d1aae77646af65b57c4e38310c3c6042d5e9aa1510ff93631e76fcb9133e"
+    },
+    {
+      "file": "tests/ip-rate-limit.test.ts",
+      "hash": "sha256-717dafc88f1357b5ce0924ef0cb66fb8a174d238a45097d49875e190ce2beb32"
+    },
+    {
+      "file": "tests/lockout-auto.test.ts",
+      "hash": "sha256-20283490482c5cca7e6491ce9eaa8c84dc2b9b129cf17628bd875ae6d0088c80"
+    },
+    {
+      "file": "tests/lockout-status.test.ts",
+      "hash": "sha256-715113070b50dbe9ba4c3cf33762cc98f121839b671321e4cdf1bedbc2c6c790"
+    },
+    {
+      "file": "tests/login.test.ts",
+      "hash": "sha256-8474d5a0575fbe6c784725ccfc13b8f6c1eaeb4c81c17f54ef70678408724f50"
+    },
+    {
+      "file": "tests/password-error.test.ts",
+      "hash": "sha256-cba87ce5c264a8f5e8275b670ae15f552c630dbdeb992af652b8d21c3783ea43"
+    },
+    {
+      "file": "tests/password-security.test.ts",
+      "hash": "sha256-960891acec3064e1214a147c0d3cc9c34eca42685aa2e5ac57b9e5e8b23fe1cf"
+    },
+    {
+      "file": "tests/performance.test.ts",
+      "hash": "sha256-d796afa6e34169fdaff0d5b22f2e05265d698c21d5d1a9dba2c31ff2f0c78da5"
+    },
+    {
+      "file": "tests/session.test.ts",
+      "hash": "sha256-a38ebd3256f0f52965173cb96bcb434359f018289285a97ec36b4f4326f2ef7e"
+    },
+    {
+      "file": "tsconfig.json",
+      "hash": "sha256-167d5754eb1ab4280b5d74e10cc65b8c80be380937714af3f408d9b032d4c710"
+    }
+  ]
+}

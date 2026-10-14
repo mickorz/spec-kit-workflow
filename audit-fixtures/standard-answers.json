@@ -1,0 +1,57 @@
+{
+  "versions": {
+    "v1-complete": {
+      "description": "完整实现，所有需求正确",
+      "expectedGaps": [],
+      "fullyImplemented": true
+    },
+    "v2-missing-fr003": {
+      "description": "删除锁定触发逻辑，getLockStatus 始终返回未锁定，updateLockConfig 空操作",
+      "expectedGaps": [
+        {
+          "requirementId": "FR-003",
+          "expectedStatus": "missing",
+          "defectLocation": "src/auth.ts",
+          "defectDescription": "锁定触发逻辑被删除，阈值设为 999999，getLockStatus 始终返回 locked=false，updateLockConfig 为空操作"
+        },
+        {
+          "requirementId": "FR-004",
+          "expectedStatus": "missing",
+          "defectLocation": "src/auth.ts",
+          "defectDescription": "锁定状态判定逻辑被删除（getLockStatus 始终返回未锁定）"
+        },
+        {
+          "requirementId": "FR-005",
+          "expectedStatus": "partial",
+          "defectLocation": "src/auth.ts",
+          "defectDescription": "adminUnlock 接口存在但无实际锁定状态可解除"
+        }
+      ],
+      "fullyImplemented": false
+    },
+    "v3-partial-fr003": {
+      "description": "保留锁定接口和配置，但删除实际锁定触发逻辑",
+      "expectedGaps": [
+        {
+          "requirementId": "FR-003",
+          "expectedStatus": "partial",
+          "defectLocation": "src/auth.ts",
+          "defectDescription": "达到阈值后不执行锁定（attempts >= lockThreshold 的 if 块被删除），failedAttempts 仍递增但不触发锁定"
+        }
+      ],
+      "fullyImplemented": false
+    },
+    "v4-contradicts-fr003": {
+      "description": "锁定阈值从 5 改为 10",
+      "expectedGaps": [
+        {
+          "requirementId": "FR-003",
+          "expectedStatus": "contradicts",
+          "defectLocation": "src/auth.ts:78",
+          "defectDescription": "DEFAULT_LOCK_THRESHOLD = 10，Spec 要求 5 次，代码实现 10 次"
+        }
+      ],
+      "fullyImplemented": false
+    }
+  }
+}

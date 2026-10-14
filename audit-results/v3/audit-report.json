@@ -1,0 +1,530 @@
+{
+  "converged": false,
+  "timestamp": "2026-10-14T04:27:38.904Z",
+  "specPath": "E:\\WorkProjects\\spec-kit-workflow\\experiments\\fixtures\\frozen-spec.md",
+  "projectPath": "E:\\WorkProjects\\spec-kit-workflow\\audit-fixtures\\v3-partial-fr003",
+  "conditions": {
+    "C1": {
+      "passed": true
+    },
+    "C2": {
+      "passed": true
+    },
+    "C3": {
+      "passed": false,
+      "details": [
+        "FR-003: partial - 核心锁定触发逻辑（AC-009）完全未实现：login函数在密码错误时递增failedAttempts但从未检查阈值或设置user.lockedAt。代码auth.ts:219注释明确标注'实际锁定逻",
+        "FR-004: partial - FR-004的锁定判定与恢复逻辑（AC-013到AC-016）在代码结构中存在实现（auth.ts:172-201），但全部依赖FR-003的锁定触发逻辑，而后者完全未实现。user.lockedAt",
+        "FR-006: partial - AC-023未实现：密码哈希算法硬编码为scrypt(SCRYPT_N=16384,SCRYPT_R=8,SCRYPT_P=1)，无运行时可配置替换接口，无历史账号迁移策略，无旧算法兼容校验。仅代码注",
+        "FR-007: partial - AC-025代码逻辑正确但无测试覆盖（测试未模拟时间过期场景）。AC-027部分实现：多设备并发登录允许多会话已实现并有测试，但spec要求的'策略可配置'（允许多会话或后者挤掉前者）未实现，代码中无",
+        "NFR-001: partial - 密码存储使用scrypt带盐慢哈希，满足核心安全要求。但spec要求的可配置哈希计算耗时下限（默认100ms）未实现：无可配置耗时下限参数，无耗时测量或保证机制。",
+        "NFR-002: unverified - 无性能测试或计时机制验证登录接口响应时间。代码中无性能基准测试，evidence.json中亦无性能测试结果。无法确认95分位500ms/99分位1000ms是否满足。",
+        "NFR-003: partial - 防暴力破解核心能力（单账号失败达阈值锁定）未实现，因FR-003锁定触发逻辑缺失。IP频率限制（可选增强）未实现。锁定参数动态调整已实现（updateLockConfig），但因锁定触发未实现而无实际",
+        "NFR-004: partial - 审计日志基础设施已实现，登录成功/失败/登出/管理员解锁/自动解锁均有audit调用并含来源IP。但'账号锁定触发'事件因锁定未实现而无审计记录。日志存储为内存数组，无防篡改保护，无90天保留期管理。"
+      ]
+    },
+    "C4": {
+      "passed": true
+    },
+    "C5": {
+      "passed": true
+    },
+    "C7": {
+      "passed": false,
+      "details": [
+        "NFR-002: unverified - 无性能测试或计时机制验证登录接口响应时间。代码中无性能基准测试，evidence.json中亦无性能测试结果。无法确认95分位500ms/99分位1000ms是否满足。"
+      ]
+    }
+  },
+  "requirements": [
+    {
+      "id": "FR-001",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-001",
+        "AC-002",
+        "AC-003",
+        "AC-004",
+        "AC-005"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-001",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-001",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "密码校验通过后createSession创建会话签发token，session记录含username与expiresAt，凭证有效携带用户标识与过期时间",
+          "fileRef": "src/auth.ts:204"
+        },
+        {
+          "ac": "AC-002",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-002",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "用户不存在时返回'用户名或密码错误'统一提示，不泄露用户名是否存在",
+          "fileRef": "src/auth.ts:160"
+        },
+        {
+          "ac": "AC-003",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "login函数检查user.disabled字段，禁用账号返回'账号已被禁用'提示；registerUser支持opts.disabled参数",
+          "fileRef": "src/auth.ts:166"
+        },
+        {
+          "ac": "AC-004",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-004",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "login函数检查!username || !password，空值返回'用户名和密码不能为空'",
+          "fileRef": "src/auth.ts:152"
+        },
+        {
+          "ac": "AC-005",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-005",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "users.get(username)区分大小写，'Alice'与'alice'不匹配，登录失败",
+          "fileRef": "src/auth.ts:157"
+        }
+      ]
+    },
+    {
+      "id": "FR-002",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-006",
+        "AC-007",
+        "AC-008"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-006",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-006",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "密码不匹配时user.failedAttempts += 1递增失败计数，返回'用户名或密码错误'统一提示",
+          "fileRef": "src/auth.ts:215"
+        },
+        {
+          "ac": "AC-007",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-007",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "密码正确登录成功时user.failedAttempts = 0清零失败计数",
+          "fileRef": "src/auth.ts:206"
+        },
+        {
+          "ac": "AC-008",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-008",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "密码错误返回固定字符串'用户名或密码错误'，不含哈希格式/盐值/算法信息",
+          "fileRef": "src/auth.ts:221"
+        }
+      ]
+    },
+    {
+      "id": "FR-003",
+      "status": "partial",
+      "finding": "核心锁定触发逻辑（AC-009）完全未实现：login函数在密码错误时递增failedAttempts但从未检查阈值或设置user.lockedAt。代码auth.ts:219注释明确标注'实际锁定逻辑未实现'。AC-010的锁定拒绝逻辑虽存在但因lockedAt从未被设置而不可达。AC-011/AC-012的配置基础设施已实现（updateLockConfig + 常量定义）但因锁定触发未实现而无实际效果。",
+      "evidenceRefs": [
+        "AC-009",
+        "AC-010",
+        "AC-011",
+        "AC-012"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-009",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "login函数中密码错误时递增failedAttempts但从未检查阈值或设置user.lockedAt，锁定触发逻辑完全缺失。代码注释auth.ts:219明确写道'FR-003: 达到阈值应触发锁定，但实际锁定逻辑未实现'。账号永远不会被锁定，后续登录请求也不会被拒绝，'账号已锁定，请于X分钟后重试'提示不可达。",
+          "fileRef": "src/auth.ts:219"
+        },
+        {
+          "ac": "AC-010",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "锁定拒绝逻辑存在(auth.ts:172-201)，锁定期间不增计数的设计正确，但因lockedAt从未被赋值，该代码路径完全不可达，无法实现实际效果",
+          "fileRef": "src/auth.ts:172"
+        },
+        {
+          "ac": "AC-011",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "updateLockConfig实现threshold配置，Math.max(MIN_LOCK_THRESHOLD=3, threshold)保证下限3",
+          "fileRef": "src/auth.ts:347"
+        },
+        {
+          "ac": "AC-012",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "updateLockConfig实现durationMs配置，默认DEFAULT_LOCK_DURATION_MS=15*60*1000(15分钟)，0表示永久锁定",
+          "fileRef": "src/auth.ts:79"
+        }
+      ]
+    },
+    {
+      "id": "FR-004",
+      "status": "partial",
+      "finding": "FR-004的锁定判定与恢复逻辑（AC-013到AC-016）在代码结构中存在实现（auth.ts:172-201），但全部依赖FR-003的锁定触发逻辑，而后者完全未实现。user.lockedAt字段从未在login流程中被赋值，导致auth.ts:172-201整个锁定判定分支不可达。所有AC均无可达执行路径或测试覆盖。",
+      "evidenceRefs": [
+        "AC-013",
+        "AC-014",
+        "AC-015",
+        "AC-016"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-013",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "自动解锁逻辑存在(auth.ts:195-201)：清除lockedAt/lockDurationMs并清零failedAttempts后继续密码校验。但因FR-003锁定触发未实现，lockedAt从未被设置，该自动解锁分支不可达",
+          "fileRef": "src/auth.ts:195"
+        },
+        {
+          "ac": "AC-014",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "秒级边界判定Date.now() >= user.lockedAt + duration逻辑存在，但因锁定未实现而不可达，无法验证边界精确性",
+          "fileRef": "src/auth.ts:175"
+        },
+        {
+          "ac": "AC-015",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "永久锁定判定duration===0及'账号已永久锁定'提示逻辑存在(auth.ts:174,179-183)，但因锁定触发未实现而不可达",
+          "fileRef": "src/auth.ts:174"
+        },
+        {
+          "ac": "AC-016",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "多次锁定周期独立计算依赖锁定触发与解锁清除逻辑，代码结构上每次锁定会重新设置lockedAt/lockDurationMs，但因锁定触发完全未实现，无法验证多次锁定周期独立计算行为",
+          "fileRef": "src/auth.ts:219"
+        }
+      ]
+    },
+    {
+      "id": "FR-005",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [
+        "AC-017",
+        "AC-018",
+        "AC-019",
+        "AC-020"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-017",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "adminUnlock清除user.lockedAt/lockDurationMs并重置failedAttempts为0，解锁逻辑正确，不受锁定时长是否到期限制",
+          "fileRef": "src/auth.ts:266"
+        },
+        {
+          "ac": "AC-018",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "adminUnlock检查users.get(username)，不存在时返回{success:false, error:'账号不存在'}，无副作用",
+          "fileRef": "src/auth.ts:260"
+        },
+        {
+          "ac": "AC-019",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "adminUnlock对未锁定账号(wasLocked=false)同样清除lockedAt并返回success:true，操作幂等成功不报错",
+          "fileRef": "src/auth.ts:266"
+        },
+        {
+          "ac": "AC-020",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "adminUnlock首先检查isAdmin(adminUser)，非管理员返回{success:false, error:'无权限'}拒绝执行",
+          "fileRef": "src/auth.ts:255"
+        }
+      ]
+    },
+    {
+      "id": "FR-006",
+      "status": "partial",
+      "finding": "AC-023未实现：密码哈希算法硬编码为scrypt(SCRYPT_N=16384,SCRYPT_R=8,SCRYPT_P=1)，无运行时可配置替换接口，无历史账号迁移策略，无旧算法兼容校验。仅代码注释提到手动修改函数。",
+      "evidenceRefs": [
+        "AC-021",
+        "AC-022",
+        "AC-023"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-021",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-021",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "hashPassword使用randomBytes(16)生成随机盐，scryptSync生成哈希，存储格式scrypt$saltHex$hashHex不含明文；不同盐值使相同明文产生不同哈希",
+          "fileRef": "src/auth.ts:103"
+        },
+        {
+          "ac": "AC-022",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-022",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "verifyPassword对输入密码做scryptSync后用timingSafeEqual常量时间比较，比对一致视为密码正确",
+          "fileRef": "src/auth.ts:114"
+        },
+        {
+          "ac": "AC-023",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "代码仅有注释说明'如需替换算法仅需修改hashPassword/verifyPassword'(auth.ts:68)，但无可配置算法替换接口、无盐值生成方式配置、无历史账号密码迁移策略、无旧算法兼容校验机制",
+          "fileRef": "src/auth.ts:68"
+        }
+      ]
+    },
+    {
+      "id": "FR-007",
+      "status": "partial",
+      "finding": "AC-025代码逻辑正确但无测试覆盖（测试未模拟时间过期场景）。AC-027部分实现：多设备并发登录允许多会话已实现并有测试，但spec要求的'策略可配置'（允许多会话或后者挤掉前者）未实现，代码中无会话策略配置接口。",
+      "evidenceRefs": [
+        "AC-024",
+        "AC-025",
+        "AC-026",
+        "AC-027"
+      ],
+      "verifications": [
+        {
+          "ac": "AC-024",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-024",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "verifyToken检查session存在性/revoked状态/expiresAt，过期前返回valid:true",
+          "fileRef": "src/auth.ts:291"
+        },
+        {
+          "ac": "AC-025",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "verifyToken检查Date.now() >= session.expiresAt返回{valid:false, expired:true}，过期判定逻辑正确。但无测试覆盖过期场景（未模拟时间流逝）",
+          "fileRef": "src/auth.ts:299"
+        },
+        {
+          "ac": "AC-026",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-026",
+          "type": "static_check",
+          "result": "passed",
+          "reason": "logout设置session.revoked=true，凭证立即失效；verifyToken检查revoked返回valid:false",
+          "fileRef": "src/auth.ts:278"
+        },
+        {
+          "ac": "AC-027",
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": "AC-027",
+          "type": "static_check",
+          "result": "failed",
+          "reason": "代码允许多会话（createSession每次生成新token无限制），但spec要求'策略可配置'（允许多会话或后者挤掉前者），代码中无会话策略配置接口",
+          "fileRef": "src/auth.ts:129"
+        }
+      ]
+    },
+    {
+      "id": "NFR-001",
+      "status": "partial",
+      "finding": "密码存储使用scrypt带盐慢哈希，满足核心安全要求。但spec要求的可配置哈希计算耗时下限（默认100ms）未实现：无可配置耗时下限参数，无耗时测量或保证机制。",
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "passed",
+          "reason": "使用scryptSync(N=16384,r=8,p=1)带randomBytes(16)盐值的慢哈希算法，与bcrypt同等强度，禁止明文/可逆加密/无盐哈希",
+          "fileRef": "src/auth.ts:69"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "failed",
+          "reason": "spec要求'哈希计算开销应使单次校验耗时不低于可配置下限（默认100ms）'，代码中无可配置耗时下限参数，无单次校验耗时测量或保证逻辑",
+          "fileRef": "src/auth.ts:69"
+        }
+      ]
+    },
+    {
+      "id": "NFR-002",
+      "status": "unverified",
+      "finding": "无性能测试或计时机制验证登录接口响应时间。代码中无性能基准测试，evidence.json中亦无性能测试结果。无法确认95分位500ms/99分位1000ms是否满足。",
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "unverified",
+          "reason": "代码中无性能基准测试或计时逻辑，无法验证95分位500ms/99分位1000ms响应性能要求；evidence.json中亦无性能测试结果",
+          "fileRef": "src/auth.ts:150"
+        }
+      ]
+    },
+    {
+      "id": "NFR-003",
+      "status": "partial",
+      "finding": "防暴力破解核心能力（单账号失败达阈值锁定）未实现，因FR-003锁定触发逻辑缺失。IP频率限制（可选增强）未实现。锁定参数动态调整已实现（updateLockConfig），但因锁定触发未实现而无实际效果。",
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "failed",
+          "reason": "单账号连续失败达阈值即锁定——锁定触发逻辑完全未实现（FR-003 AC-009 missing），auth.ts:219注释明确标注",
+          "fileRef": "src/auth.ts:219"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "failed",
+          "reason": "基于IP的登录失败频率限制——代码中无IP限流/封禁逻辑，login函数仅记录IP用于审计，未做频率限制",
+          "fileRef": "src/auth.ts:150"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "passed",
+          "reason": "updateLockConfig实现锁定参数动态调整，运行时可不重启服务修改threshold和durationMs",
+          "fileRef": "src/auth.ts:345"
+        }
+      ]
+    },
+    {
+      "id": "NFR-004",
+      "status": "partial",
+      "finding": "审计日志基础设施已实现，登录成功/失败/登出/管理员解锁/自动解锁均有audit调用并含来源IP。但'账号锁定触发'事件因锁定未实现而无审计记录。日志存储为内存数组，无防篡改保护，无90天保留期管理。",
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "passed",
+          "reason": "audit函数记录timestamp/username/ip/event/result五字段；登录成功(auth.ts:210)、登录失败(auth.ts:153/161/167/187/217)、管理员解锁(auth.ts:271)、自动解锁(auth.ts:199)、登出(auth.ts:284)均有audit调用",
+          "fileRef": "src/auth.ts:91"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "failed",
+          "reason": "账号锁定触发事件(account_locked)无审计记录——锁定触发逻辑未实现，audit中无锁定触发事件记录",
+          "fileRef": "src/auth.ts:219"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "failed",
+          "reason": "日志存储为内存数组auditLogEntries(auth.ts:88)，无防篡改机制（普通用户可通过修改模块状态影响），无90天保留期管理逻辑",
+          "fileRef": "src/auth.ts:88"
+        }
+      ]
+    },
+    {
+      "id": "NFR-005",
+      "status": "pass",
+      "finding": null,
+      "evidenceRefs": [],
+      "verifications": [
+        {
+          "ac": null,
+          "type": "automated_test",
+          "testId": "tests/auth.test.ts (15 tests)",
+          "result": "passed"
+        },
+        {
+          "ac": null,
+          "type": "static_check",
+          "result": "passed",
+          "reason": "所有登录错误返回统一业务级提示：'用户名和密码不能为空'(auth.ts:154)、'用户名或密码错误'(auth.ts:162/221)、'账号已被禁用'(auth.ts:168)、'账号已锁定'(auth.ts:190/182)。不含哈希算法/数据库错误/用户名存在性等技术细节",
+          "fileRef": "src/auth.ts:162"
+        }
+      ]
+    }
+  ],
+  "fullyImplemented": false,
+  "summary": {
+    "totalRequirements": 12,
+    "statusCounts": {
+      "pass": 4,
+      "partial": 7,
+      "unverified": 1
+    },
+    "fullyImplemented": false
+  }
+}
