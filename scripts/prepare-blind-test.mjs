@@ -3,7 +3,8 @@
 // 中性目录名、中性注释、标准答案存放在独立位置
 
 import { cpSync, readFileSync, writeFileSync, mkdirSync, existsSync, rmSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { resolve, join } from 'node:path'
+import os from 'node:os'
 
 const rootDir = process.cwd()
 const baseDir = resolve('blind-test')
@@ -180,8 +181,8 @@ createProject('project-d', (code) => {
   return code
 })
 
-// === 标准答案（存放在独立目录，Reviewer 不会读取）===
-const answersDir = resolve(baseDir, 'answers')
+// === 标准答案（存放在工作区外部，Reviewer 无法访问）===
+const answersDir = resolve(os.homedir(), 'AppData/Local/Temp/opencode/blind-test-answers')
 mkdirSync(answersDir, { recursive: true })
 
 const answers = {
