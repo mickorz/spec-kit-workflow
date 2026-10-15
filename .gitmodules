@@ -1,0 +1,21 @@
+[submodule "thirdparties/BMAD-METHOD"]
+	path = thirdparties/BMAD-METHOD
+	url = https://github.com/bmad-code-org/BMAD-METHOD.git
+[submodule "thirdparties/OpenSpec"]
+	path = thirdparties/OpenSpec
+	url = https://github.com/Fission-AI/OpenSpec
+[submodule "thirdparties/cc-sdd"]
+	path = thirdparties/cc-sdd
+	url = https://github.com/gotalab/cc-sdd.git
+[submodule "thirdparties/opencode-dynamic-workflows"]
+	path = thirdparties/opencode-dynamic-workflows
+	url = git@github.com:mickorz/opencode-dynamicworkflows.git
+[submodule "thirdparties/spec-harness"]
+	path = thirdparties/spec-harness
+	url = https://github.com/MicTx/spec-harness.git
+[submodule "thirdparties/spec-kit"]
+	path = thirdparties/spec-kit
+	url = https://github.com/github/spec-kit.git
+[submodule "thirdparties/spec-workflow-mcp"]
+	path = thirdparties/spec-workflow-mcp
+	url = https://github.com/Pimzino/spec-workflow-mcp.git
