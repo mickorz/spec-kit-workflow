@@ -91,13 +91,12 @@ const reviewPrompt = `你是独立的审计 Reviewer。你的职责是逐条核�
 
 你的回复必须是以下 JSON 格式（纯 JSON，不要 markdown 围栏）：
 
-{"feature":"${feature}","round":1,"specHash":"","reviewerLabel":"Audit-Reviewer","requirements":[{"id":"FR-001","status":"pass","evidenceRefs":["AC-001"],"verifications":[{"ac":"AC-001","type":"automated_test","testId":"测试名称","result":"passed"}],"finding":null},{"id":"NFR-001","status":"pass","evidenceRefs":[],"verifications":[{"ac":null,"type":"static_check","result":"passed","reason":"验证说明","fileRef":"src/config.ts:10"}],"finding":null}]}
+{"feature":"${feature}","round":1,"specHash":"","reviewerLabel":"Audit-Reviewer","requirements":[{"id":"FR-001","status":"pass","evidenceRefs":["AC-001"],"verifications":[{"ac":"AC-001","type":"automated_test","testId":"测试名称","result":"passed"}],"finding":null},{"id":"NFR-001","status":"pass","evidenceRefs":["AC-005"],"verifications":[{"ac":"AC-005","type":"static_check","result":"passed","reason":"验证说明","fileRef":"src/config.ts:10"}],"finding":null}]}
 
 注意：
 - requirements 数组必须包含 spec.md 中中的所有 FR 和 NFR，不能遗漏。
 - status 非 pass 时 finding 必须非空，说明具体缺口。
-- status=pass 时必须有非空 verifications 数组，每个 AC 都要有对应条目。
-- NFR 无 AC 时也必须有至少一条 verification。
+- status=pass 时必须有非空 verifications 数组，每个 AC 都要有对应条目（FR 与 NFR 一致，禁止 ac 为 null）。
 - 所有支撑 pass 的 verification 必须有 result=passed。
 - automated_test 的 testId 必须是 evidence.json testResults 中真实存在的测试名称。
 - static_check 必须包含 fileRef。`

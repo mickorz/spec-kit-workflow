@@ -8,6 +8,7 @@ import { readFileSync, existsSync, writeFileSync, readdirSync, statSync } from '
 import { resolve, join, relative } from 'node:path'
 import { createHash } from 'node:crypto'
 import { execSync } from 'node:child_process'
+import { parseSpec } from './spec-parser.mjs'
 
 function readFile(path) {
   let content = readFileSync(path, 'utf-8')
@@ -190,12 +191,15 @@ if (!review) {
   report.conditions.C4 = { passed: false, status: 'pending', details: ['review.json 不存在'] }
   report.conditions.C7 = { passed: false, status: 'pending', details: ['review.json 不存在'] }
 } else {
-  // C2: review.json 包含每条 FR 和 NFR
+  // C2: review.json 包含每条 FR 和 NFR（统一解析器）
   const specFile = resolve(dir, 'spec.md')
   const specContent = readFile(specFile)
-  const specFRs = new Set([...specContent.matchAll(/### (FR-\d+)/g)].map(m => m[1]))
-  const specNFRs = new Set([...specContent.matchAll(/### (NFR-\d+)/g)].map(m => m[1]))
-  const specAllReqs = new Set([...specFRs, ...specNFRs])
+  const parsed = parseSpec(specContent)
+  const specAllReqs = new Set([...parsed.frIds, ...parsed.nfrIds])
+  const specACByReq = new Map()
+  for (const req of parsed.requirements) {
+    specACByReq.set(req.id, new Set(req.acs.map(a => a.id)))
+  }
   const reviewIds = new Set((review.requirements || []).map(r => r.id))
   const missingInReview = [...specAllReqs].filter(id => !reviewIds.has(id))
   const extraInReview = [...reviewIds].filter(id => !specAllReqs.has(id))
@@ -211,24 +215,15 @@ if (!review) {
     details: nonPass.length > 0 ? nonPass.map(r => `${r.id}: ${r.status}${r.finding ? ' - ' + r.finding.slice(0, 80) : ''}`) : undefined
   }
 
-  // C4: 每条 AC 有明确的验证证据
+  // C4: 每条 AC 有明确的验证证据（EARS-P1：逐 AC 口径，FR 与 NFR 一致）
   // 检查四层：
   //   a) evidence.json status=passed 且测试数 > 0
-  //   b) spec.md 中每条 AC 出现在 review.json 某条 requirement 的 evidenceRefs 中
+  //   b) spec.md 中每条 AC 出现在 review.json 某条 requirement 的 evidenceRefs 中，且归属正确
   //   c) 引用该 AC 的 requirement 状态为 pass
-  //   d) 每个 AC 有 verification 条目；automated_test 的 testId 在 evidence.json testResults 中存在且 passed
-  const specACs = new Set([...specContent.matchAll(/AC-\d+/g)].map(m => m[0]))
-  // AC → 所属 FR/NFR 映射（从 spec.md 解析）
-  const acToReq = new Map()
-  let currentReq = null
-  for (const line of specContent.split('\n')) {
-    const frMatch = line.match(/### (FR-\d+)/)
-    const nfrMatch = line.match(/### (NFR-\d+)/)
-    if (frMatch) currentReq = frMatch[1]
-    if (nfrMatch) currentReq = nfrMatch[1]
-    const acMatch = line.match(/(AC-\d+)/)
-    if (acMatch && currentReq) acToReq.set(acMatch[1], currentReq)
-  }
+  //   d) 逐 AC verification：每个 AC 必须有条目；automated_test 的 testId 在 evidence.json testResults 中存在且 passed；
+  //      static_check 有 reason+fileRef；manual 有 reason+approver；废除 NFR ac=null 免检路径
+  const specACs = new Set([...specACByReq.values()].flatMap(s => [...s]))
+  const acToReq = parsed.acToReq
   const reviewReqMap = new Map()
   for (const r of (review.requirements || [])) {
     reviewReqMap.set(r.id, r)
@@ -246,15 +241,13 @@ if (!review) {
   } else if (evidence.tests && evidence.tests.total === 0) {
     noEvidence.push('测试用例数为零')
   }
-  // b) 每条 AC 被 review.json 引用
-  const uncoveredACs = [...specACs].filter(ac => !coveredACs.has(ac))
-  if (uncoveredACs.length > 0) {
-    noEvidence.push(`以下 AC 未在 review.json evidenceRefs 中出现: ${uncoveredACs.join(', ')}`)
-  }
-  // c) 引用 AC 的 requirement 必须 pass 且 AC 必须关联到正确的 FR/NFR
+  // b) 每条 AC 被 review.json 引用且归属正确
   for (const ac of specACs) {
-    if (!coveredACs.has(ac)) continue
-    const expectedReq = acToReq.get(ac)
+    if (!coveredACs.has(ac)) {
+      noEvidence.push(`AC ${ac} 未在 review.json evidenceRefs 中出现`)
+      continue
+    }
+    const expectedReq = acToReq[ac]
     for (const r of (review.requirements || [])) {
       if ((r.evidenceRefs || []).includes(ac)) {
         if (r.status !== 'pass') {
@@ -266,64 +259,55 @@ if (!review) {
       }
     }
   }
-  // d) per-AC verification 条目：Strict 模式——无 verifications 时 C4 直接失败
+  // d) 逐 AC verification（含 NFR：无免检路径）
   const testResults = (evidence && evidence.testResults) || []
   const testResultNames = new Set(testResults.map(t => t.name))
   const passedTestNames = new Set(testResults.filter(t => t.status === 'passed').map(t => t.name))
   for (const r of (review.requirements || [])) {
+    const expectedACs = specACByReq.get(r.id) || new Set()
     const verifications = r.verifications
-    // Strict 模式：status=pass 的 requirement 必须有 verifications 数组
     if (r.status === 'pass') {
       if (!Array.isArray(verifications)) {
-        noEvidence.push(`${r.id}: status=pass 但无 verifications 数组（Strict 模式要求逐 AC 证据）`)
+        noEvidence.push(`${r.id}: status=pass 但无 verifications 数组（逐 AC 证据必需）`)
         continue
       }
-    }
-    for (const ac of (r.evidenceRefs || [])) {
-      if (!ac) continue
-      const verif = (verifications || []).find(v => v.ac === ac)
-      if (!verif) {
-        // Strict 模式：每个 AC 必须有 verification 条目
-        noEvidence.push(`${ac}: 缺少 verification 条目（${r.id} 的 verifications 中未找到此 AC）`)
-        continue
-      }
-      if (verif.type === 'automated_test') {
-        if (!verif.testId) {
-          noEvidence.push(`${ac}: automated_test 但无 testId`)
-        } else if (!testResultNames.has(verif.testId)) {
-          noEvidence.push(`${ac}: testId "${verif.testId}" 不在 evidence.json testResults 中`)
-        } else if (!passedTestNames.has(verif.testId)) {
-          noEvidence.push(`${ac}: testId "${verif.testId}" 在 testResults 中但状态非 passed`)
+      // 逐 AC 覆盖：该需求的全部 AC 都必须有 verification 条目且通过
+      for (const acId of expectedACs) {
+        const verif = verifications.find(v => v.ac === acId)
+        if (!verif) {
+          noEvidence.push(`${r.id}: AC ${acId} 缺少 verification 条目`)
+          continue
         }
-      } else if (verif.type === 'static_check') {
-        // static_check 必须包含检查目标和结果
-        if (!verif.reason || verif.reason.trim().length === 0) {
-          noEvidence.push(`${ac}: static_check 但无 reason`)
-        } else if (!verif.fileRef) {
-          noEvidence.push(`${ac}: static_check 但无 fileRef（需指向具体文件或代码位置）`)
-        }
-      } else if (verif.type === 'manual') {
-        // manual 必须包含审批人
-        if (!verif.reason || verif.reason.trim().length === 0) {
-          noEvidence.push(`${ac}: manual 但无 reason`)
-        } else if (!verif.approver) {
-          noEvidence.push(`${ac}: manual 但无 approver（需审批人标识）`)
-        }
-      } else if (verif.result !== 'passed') {
-        noEvidence.push(`${ac}: verification result 非 passed`)
-      }
-    }
-    // NFR 的 verification（ac 为 null）
-    for (const verif of (verifications || [])) {
-      if (verif.ac === null && r.status === 'pass') {
-        if (verif.type === 'static_check') {
-          if (!verif.reason || !verif.fileRef) {
-            noEvidence.push(`${r.id}: NFR static_check 缺少 reason 或 fileRef`)
+        if (verif.type === 'automated_test') {
+          if (!verif.testId) {
+            noEvidence.push(`${acId}: automated_test 但无 testId`)
+          } else if (!testResultNames.has(verif.testId)) {
+            noEvidence.push(`${acId}: testId "${verif.testId}" 不在 evidence.json testResults 中`)
+          } else if (!passedTestNames.has(verif.testId)) {
+            noEvidence.push(`${acId}: testId "${verif.testId}" 在 testResults 中但状态非 passed`)
+          }
+        } else if (verif.type === 'static_check') {
+          if (!verif.reason || verif.reason.trim().length === 0) {
+            noEvidence.push(`${acId}: static_check 但无 reason`)
+          } else if (!verif.fileRef) {
+            noEvidence.push(`${acId}: static_check 但无 fileRef（需指向具体文件或代码位置）`)
           }
         } else if (verif.type === 'manual') {
-          if (!verif.reason || !verif.approver) {
-            noEvidence.push(`${r.id}: NFR manual 缺少 reason 或 approver`)
+          if (!verif.reason || verif.reason.trim().length === 0) {
+            noEvidence.push(`${acId}: manual 但无 reason`)
+          } else if (!verif.approver) {
+            noEvidence.push(`${acId}: manual 但无 approver（需审批人标识）`)
           }
+        } else {
+          noEvidence.push(`${acId}: verification type "${verif.type}" 无效`)
+        }
+      }
+      // 禁止 ac=null（旧版 NFR 免检路径）
+      for (const v of verifications) {
+        if (v.ac === null || v.ac === undefined) {
+          noEvidence.push(`${r.id}: 存在 ac=null 的 verification（EARS 契约禁止，NFR 必须逐 AC）`)
+        } else if (!expectedACs.has(v.ac)) {
+          noEvidence.push(`${r.id}: verification 引用的 AC ${v.ac} 不属于该需求`)
         }
       }
     }
