@@ -3,10 +3,12 @@
 // 用法: node sdd/tools/coverage.mjs <feature>
 // 退出码: 0=通过, 1=未达标
 // 检查规则见 dev-docs/design/sdd-artifact-contract.md 第 3.4 节
+// EARS-P0 改造：统一使用 spec-parser.mjs 解析；NFR 必须有 AC 映射；AC 归属校验
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { createHash } from 'node:crypto'
+import { parseSpec, allACIds } from './spec-parser.mjs'
 
 // 读取文件并去除 BOM
 function readFile(path) {
@@ -40,25 +42,35 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-// 2. 解析 spec.md 中的 FR、AC、NFR ID
+// 2. 解析 spec.md（统一解析器）
 const specContent = readFile(specFile)
-const frMatches = [...specContent.matchAll(/###\s+(FR-\d{3})/g)]
-const acMatches = [...specContent.matchAll(/-\s+(AC-\d{3})/g)]
-const nfrMatches = [...specContent.matchAll(/###\s+(NFR-\d{3})/g)]
+const parsed = parseSpec(specContent)
 
-const frIds = frMatches.map(m => m[1])
-const acIds = acMatches.map(m => m[1])
-const nfrIds = nfrMatches.map(m => m[1])
+const frIds = parsed.frIds
+const nfrIds = parsed.nfrIds
+const acIds = allACIds(parsed)
 const frSet = new Set(frIds)
 const acSet = new Set(acIds)
 const nfrSet = new Set(nfrIds)
+const acToReq = parsed.acToReq
 
-// 3. ID 重复检查
-for (const [label, ids, set] of [['FR', frIds, frSet], ['AC', acIds, acSet], ['NFR', nfrIds, nfrSet]]) {
-  if (ids.length !== set.size) {
-    const dupes = ids.filter((id, i) => ids.indexOf(id) !== i)
-    errors.push(`${label} ID 重复: ${[...new Set(dupes)].join(', ')}`)
+// 3. ID 重复检查（含孤儿 AC）
+{
+  const allIds = [...frIds, ...nfrIds, ...acIds]
+  const seen = new Set()
+  const dupes = []
+  for (const id of allIds) {
+    if (seen.has(id)) dupes.push(id)
+    seen.add(id)
   }
+  if (dupes.length > 0) {
+    errors.push(`ID 重复: ${[...new Set(dupes)].join(', ')}`)
+  }
+}
+
+// 3.1 孤儿 AC（不归属任何需求）
+if (parsed.orphanACs.length > 0) {
+  errors.push(`存在不归属任何 FR/NFR 的 AC: ${parsed.orphanACs.map(o => o.id).join(', ')}`)
 }
 
 // 4. 解析 tasks.md 中的 T-NNN ID
@@ -120,13 +132,30 @@ if (!Array.isArray(trace.mappings) || trace.mappings.length === 0) {
     errors.push(`未映射的 AC: ${unmappedACs.join(', ')}`)
   }
 
-  // taskId 存在性与 verificationMethod 校验
+  // mapping 引用了 spec 中不存在的 AC（反向校验）
+  const extraACs = [...mappedACs].filter(id => !acSet.has(id))
+  if (extraACs.length > 0) {
+    errors.push(`traceability 中有 spec 不存在的 AC: ${extraACs.join(', ')}`)
+  }
+
+  // taskId 存在性与 verificationMethod 校验 + AC 归属校验
   for (const m of trace.mappings) {
     if (!taskIds.has(m.taskId)) {
       errors.push(`taskId ${m.taskId}（${m.requirementId}）在 tasks.md 中不存在`)
     }
     if (!['test', 'manual'].includes(m.verificationMethod)) {
       errors.push(`mapping ${m.requirementId} 的 verificationMethod 无效: ${m.verificationMethod}`)
+    }
+    // EARS-P0：NFR 的 acceptanceIds 不允许为空（NFR 必须逐 AC 映射）
+    if (nfrSet.has(m.requirementId) && (!m.acceptanceIds || m.acceptanceIds.length === 0)) {
+      errors.push(`NFR ${m.requirementId} 的 acceptanceIds 为空（EARS 契约要求 NFR 逐 AC 映射）`)
+    }
+    // EARS-P0：acceptanceIds 中的 AC 必须归属该 requirement
+    for (const acId of (m.acceptanceIds || [])) {
+      const owner = acToReq[acId]
+      if (owner && owner !== m.requirementId) {
+        errors.push(`AC ${acId} 属于 ${owner}，不能映射到 ${m.requirementId}`)
+      }
     }
   }
 }
@@ -138,10 +167,15 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
+const nfrACCount = nfrIds.reduce((sum, id) => {
+  const req = parsed.requirements.find(r => r.id === id)
+  return sum + (req ? req.acs.length : 0)
+}, 0)
+
 console.log('[OK] Coverage Gate 通过')
 console.log(`  FR: ${frIds.length} 个, 全部映射`)
-console.log(`  NFR: ${nfrIds.length} 个, 全部映射`)
-console.log(`  AC: ${acIds.length} 个, 全部覆盖`)
+console.log(`  NFR: ${nfrIds.length} 个, 全部映射（含 ${nfrACCount} 条 NFR AC）`)
+console.log(`  AC: ${acIds.length} 条, 全部覆盖且归属正确`)
 console.log(`  Tasks: ${taskIds.size} 个, 全部存在`)
 console.log(`  specHash: ${actualHash}`)
 process.exit(0)

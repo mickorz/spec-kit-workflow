@@ -25,18 +25,34 @@ const appDir = `fixtures/${feature}-app`
 // 1. Specify
 phase('Specify')
 const spec = await agent(
-  `依据需求：${goal}
-参照 sdd/templates/spec.md 格式。
-在 ${dir}/ 目录下生成 spec.md（如目录不存在请先创建）。
-使用 FR-001、AC-001、NFR-001 等稳定 ID，三位数字，不重复。
-每个 FR 必须有至少一个 AC（验收条件）。
-如有非功能需求，使用 NFR-NNN 编号。
-覆盖正常流程、异常流程及边界条件。
+  `依据原始需求：${goal}
+
+读取以下文件：
+- sdd/templates/spec.md（新版 EARS Spec 模板）
+- sdd/rules/ears-format.md（EARS 语法规则）
+
+要求：
+1. 使用 FR-NNN / NFR-NNN / AC-NNN 稳定 ID，三位数字，全局唯一不重复
+2. 每个 FR 和 NFR 必须至少包含一条 AC
+3. 所有 AC 必须使用 EARS 句式，触发关键字 When While If Where The shall 保留英文，变量部分用中文
+4. 每条 AC 只描述一个主要行为，只允许出现一个 shall
+5. AC 必须可观察可验证，禁止模糊词如 快速 稳定 安全
+6. 不得擅自补充原始需求未提及的业务数值或规则
+7. 无法确定的条件以 [待澄清: 原因] 标记，不得猜测
+8. 覆盖正常流程、异常流程及边界条件
+9. 按模板结构在 ${dir}/ 目录下生成 spec.md（如目录不存在请先创建）
+
 禁止调用 workflow 工具。`,
   { label: 'Specify', agentType: 'general', timeoutMs: 3600000 }
 )
 await check(() => spec !== null, 'Spec 生成失败')
 await check(() => fileExists(`${dir}/spec.md`), 'Spec 文件不存在')
+
+// 1.5 EARS 格式门禁（确定性，无 LLM；未通过则不进入 Plan）
+await check(
+  () => commandSuccess(`node sdd/tools/validate-ears.mjs ${feature}`),
+  'EARS 格式校验失败，详见诊断输出'
+)
 
 // 2. Plan
 phase('Plan')
@@ -73,7 +89,7 @@ const tasks = await agent(
     {
       "requirementId": "NFR-001",
       "taskId": "T-005",
-      "acceptanceIds": [],
+      "acceptanceIds": ["AC-006"],
       "verificationMethod": "manual"
     }
   ]
@@ -82,7 +98,8 @@ const tasks = await agent(
 注意：
 - specHash 留空字符串，由工具自动填充。
 - 每个 FR 和 NFR 必须有任务映射，不能遗漏任何需求。
-- NFR 的 acceptanceIds 可为空数组。
+- FR 和 NFR 的 acceptanceIds 都不允许为空，必须列出对应需求的全部 AC。
+- acceptanceIds 中的 AC 必须归属对应的 requirementId。
 - NFR 的 verificationMethod 可为 "manual" 或 "test"。
 - taskId 必须在 tasks.md 中存在。
 - verificationMethod 只允许 "test" 或 "manual"。
