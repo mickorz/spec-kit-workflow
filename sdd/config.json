@@ -47,6 +47,18 @@
         "tests/**/*.ts"
       ],
       "timeoutMs": 300000
+    },
+    "task-manager": {
+      "appDir": "E:\\WorkProjects\\spec-kit-workflow\\dev-examples\\task-manager/app",
+      "buildCommand": "npx tsc --noEmit",
+      "testCommand": "npx vitest run",
+      "sourceGlobs": [
+        "src/**/*.ts"
+      ],
+      "testGlobs": [
+        "tests/**/*.ts"
+      ],
+      "timeoutMs": 300000
     }
   }
 }
