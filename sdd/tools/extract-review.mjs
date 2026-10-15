@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // extract-review.mjs — 从工作流 journal 提取 Reviewer 的 JSON 输出，写入 review.json
 // 用法: node sdd/tools/extract-review.mjs <outputFile> [journalFile]
-// 自动处理 Reviewer 输出中包含非 JSON 文本的情况
+// 校验：只提取 label=Audit-Reviewer + agentType=explore 的 entry，拒绝其他
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, statSync } from 'node:fs'
 import { resolve, dirname, join } from 'node:path'
 
@@ -47,12 +47,25 @@ if (keys.length === 0) {
   process.exit(1)
 }
 
-const entry = entries[keys[0]]
+// 严格校验：只接受 label=Audit-Reviewer + agentType=explore 的 entry
+let entry = null
+let entryKey = null
+for (const k of keys) {
+  const e = entries[k]
+  if (e.label === 'Audit-Reviewer' && e.agentType === 'explore' && e.result) {
+    entry = e
+    entryKey = k
+    break
+  }
+}
 
-if (!entry.result) {
-  console.error('Journal entry 无 result 字段')
+if (!entry) {
+  console.error('未找到符合条件的 Audit-Reviewer (label=Audit-Reviewer, agentType=explore) entry')
+  console.error('Journal entries:', keys.map(k => `${k}: label=${entries[k].label}, agentType=${entries[k].agentType}, hasResult=${!!entries[k].result}`).join('; '))
   process.exit(1)
 }
+
+console.log(`[extract-review] 匹配 entry: ${entryKey} (label=${entry.label}, agentType=${entry.agentType})`)
 
 let resultText = entry.result
 
@@ -96,8 +109,14 @@ try {
   }
 }
 
+// 校验 reviewObj 结构
+if (!reviewObj.requirements || !Array.isArray(reviewObj.requirements)) {
+  console.error('review.json 缺少 requirements 数组')
+  process.exit(1)
+}
+
 // 写入格式化 JSON
 const outPath = resolve(outputFile)
 mkdirSync(dirname(outPath), { recursive: true })
 writeFileSync(outPath, JSON.stringify(reviewObj, null, 2) + '\n', 'utf-8')
-console.log(`[extract-review] ${outputFile} (${reviewObj.requirements?.length || 0} requirements)`)
+console.log(`[extract-review] ${outputFile} (${reviewObj.requirements.length} requirements)`)

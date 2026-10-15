@@ -368,6 +368,14 @@ export function login(username: string, password: string, ip: string): LoginResu
   audit(username, ip, 'login_failed', `failed_attempts_${attempts}`)
 
   // FR-003: 达到阈值触发锁定（AC-009）
+  if (attempts >= lockThreshold) {
+    user.lockedAt = Date.now()
+    user.lockDurationMs = lockDurationMs // 锁定时快照当前配置
+    audit(username, ip, 'lock_triggered', `locked_threshold_${lockThreshold}`)
+    // 注意：触发锁定的本次请求仍返回"用户名或密码错误"，
+    // "后续"请求才返回锁定提示（AC-009 "后续该账号的登录请求被直接拒绝"）
+  }
+
   return { success: false, error: '用户名或密码错误' }
 }
 

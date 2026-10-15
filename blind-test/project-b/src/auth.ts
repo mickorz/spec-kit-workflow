@@ -368,6 +368,14 @@ export function login(username: string, password: string, ip: string): LoginResu
   audit(username, ip, 'login_failed', `failed_attempts_${attempts}`)
 
   // FR-003: 达到阈值触发锁定（AC-009）
+  if (attempts >= lockThreshold) {
+    user.lockedAt = Date.now()
+    user.lockDurationMs = lockDurationMs // 锁定时快照当前配置
+    audit(username, ip, 'lock_triggered', `locked_threshold_${lockThreshold}`)
+    // 注意：触发锁定的本次请求仍返回"用户名或密码错误"，
+    // "后续"请求才返回锁定提示（AC-009 "后续该账号的登录请求被直接拒绝"）
+  }
+
   return { success: false, error: '用户名或密码错误' }
 }
 
@@ -376,8 +384,26 @@ export function login(username: string, password: string, ip: string): LoginResu
  * 仅读取，不触发自动解锁（自动解锁由 login 触发，AC-013）
  */
 export function getLockStatus(username: string): LockStatus {
-  const user = users.get(username)
-  return { locked: false, failedAttempts: user ? user.failedAttempts : 0 }
+  const user = lookupUser(username)
+  if (!user) {
+    return { locked: false, failedAttempts: 0 }
+  }
+  let locked = false
+  if (user.lockedAt !== undefined) {
+    const duration = user.lockDurationMs ?? 0
+    if (duration === 0) {
+      locked = true // 永久锁定
+    } else {
+      // 时间感知：过期后视为未锁定（但 failedAttempts 仍保留，待 login 清零）
+      locked = Date.now() < user.lockedAt + duration
+    }
+  }
+  return {
+    locked,
+    failedAttempts: user.failedAttempts,
+    lockedAt: user.lockedAt,
+    lockDurationMs: user.lockDurationMs,
+  }
 }
 
 /**
@@ -477,7 +503,12 @@ export function getPasswordHash(username: string): string | null {
  * 仅对新触发的锁定生效
  */
 export function updateLockConfig(opts: { threshold?: number, durationMs?: number }): void {
-  // 配置更新接口存在
+  if (opts.threshold !== undefined) {
+    lockThreshold = Math.max(MIN_LOCK_THRESHOLD, opts.threshold)
+  }
+  if (opts.durationMs !== undefined) {
+    lockDurationMs = opts.durationMs
+  }
 }
 
 /**
