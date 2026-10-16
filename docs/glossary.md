@@ -81,6 +81,7 @@ NFR-001       非功能需求第 1 条
 | **oversize** | Oversize Chunk | 超限块 | 单个原子块（巨型表格/围栏）超过 Token 预算时独立成块并标记，绝不从中间切开；由容量门禁拦截（LPRD-P0/LPRD-P3） |
 | **局部 Claim ID** | Local Claim ID | 块内需求点编号 | 分块提取时块内独立的 L-NNN 编号（相对行号 + 块内 quote），并行提取互不冲突；全局唯一 SRC-NNN 由 merge-claims 统一分配（LPRD-P1） |
 | **merge-report** | Merge Report | 合并报告 | intake/merge-report.json：去重组（kept/merged/reason）、未解决冲突（跨章节矛盾只登记不选边）、srcAssignments（from + alsoFrom 溯源）；provenance 守恒：局部 ID 总数 = kept + alsoFrom + 冲突未分配（LPRD-P1） |
+| **Chunk Gate A** | Chunk-level Intake Review | 块级漏提审查 | 每块由只读 Reviewer 独立重读原始 Chunk 比对已提取 Claim；quote 必须落在本块主区间（责任块唯一）；聚合工具把全部块审查合并为现有 intake-review.json 契约，全部通过且冲突解决才进 Specify（LPRD-P2） |
 
 ### Traceability 示例
 
