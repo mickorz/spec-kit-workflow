@@ -76,6 +76,16 @@
 <!-- 仅 opencode 插件与工作流开发项目需要以下约定，无关项目删除本节。
      本项目执行层使用 OpenCode 运行分析 Agent，opencode run 联调约定适用，暂保留。
 
+## 工作流文档：`docs/workflows.md`
+
+`.opencode-workflows/workflows/` 下的工作流（如 `sdd-feature.js`）的流程图与阶段说明统一维护在 `docs/workflows.md`。
+
+### 规则
+
+1. **工作流变更必须同步更新文档**：修改工作流脚本（新增/删除/移动 phase、调整门禁的通过/失败分支或轮次上限、变更产物文件名或哈希冻结点）时，必须同步更新 `docs/workflows.md` 中对应的 mermaid 图与阶段表，不得只改代码不改文档。
+2. **新增工作流时补充对应章节**：新建 workflow 脚本时，在 `docs/workflows.md` 中新增对应章节（流程图 + 阶段一览表）。
+3. **mermaid 语法约束**：节点 [] 内只用中英文和空格，禁止特殊字符；工具名与文件名写在表格或正文中，不进节点文本。
+
 ## opencode run 测试约定
 
 1. **并发上限：最多同时运行 2 个 `opencode run` 用例**。需要更多用例时排队分批跑。
