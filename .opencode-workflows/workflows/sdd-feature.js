@@ -4,17 +4,19 @@ export const meta = {
 }
 
 const feature = args.feature
-const goal = args.goal
+const goal = args.goal || ''
 const maxRounds = args.maxRounds || 3
 const skipRequirement = args.skipRequirement || null
+const prdPath = typeof args.prdPath === 'string' ? args.prdPath.trim() : ''
+const largeMode = prdPath.length > 0
+const MAX_CHUNKS = 200
 
-// 输入校验
+// 输入校验：feature 合法 + goal 与 prdPath 至少其一（prdPath 为大文档模式）
 await check(
   () => typeof feature === 'string' &&
     /^[a-z0-9-]+$/.test(feature) &&
-    typeof goal === 'string' &&
-    goal.trim().length > 0,
-  '需要合法的 feature 和 goal'
+    ((typeof goal === 'string' && goal.trim().length > 0) || largeMode),
+  '需要合法的 feature，且 goal 与 prdPath 至少提供其一'
 )
 
 const dir = `specs/${feature}`
@@ -24,8 +26,153 @@ const appDir = `fixtures/${feature}-app`
 
 // 0. Intake：原始需求提取（EARS-P2：PRD → SRC 需求点，防遗漏的确定性基准）
 phase('Intake')
-const intake = await agent(
-  `你是需求 Intake Agent。依据 sdd/rules/source-extraction.md 规则，从原始需求中逐条提取需求点。
+if (largeMode) {
+  // === 大文档模式（LPRD）：切块 → 分块提取 → 合并 → 容量门禁 → Chunk Gate A ===
+  // 任何阶段都不把整份 PRD 拼进 Prompt
+
+  // 0.1 切块与完整性校验（确定性）
+  await check(
+    () => commandSuccess(`node sdd/tools/prd-chunker.mjs ${feature} --from "${prdPath}" --force`),
+    'PRD 切块失败'
+  )
+  await check(
+    () => commandSuccess(`node sdd/tools/validate-chunks.mjs ${feature}`),
+    'Chunk 结构校验失败（原文覆盖或切片不一致，禁止静默截断）'
+  )
+
+  // 0.2 分块提取局部 Claim（每块独立 Agent，任一块失败不得跳过，有限重试）
+  for (let ci = 1; ci <= MAX_CHUNKS; ci++) {
+    const chunkId = `CHUNK-${String(ci).padStart(3, '0')}`
+    const chunkExists = await commandSuccess(`node sdd/tools/validate-chunks.mjs ${feature} --exists ${chunkId}`)
+    if (!chunkExists) break
+    let extracted = false
+    for (let attempt = 1; attempt <= 2 && !extracted; attempt++) {
+      const extractor = await agent(
+        `你是 Chunk Intake Agent（${chunkId}）。依据 sdd/rules/large-prd-intake.md 第二节契约提取本块需求点。
+
+读取 ${dir}/intake/chunks/${chunkId}.md（注意：文件可能带 overlap 前缀行，主内容以中后部为准；行号一律按整个文件从 1 计数）。
+
+要求：
+1. 每个可独立验证的需求点一条 Claim，localId 用 L-NNN（块内从 001 起）。
+2. claimType 六枚举（functional constraint exception non-goal assumption decision）、loadBearing 布尔；非功能 否定性约束 例外 关键数值不漏；纯背景章节可为空数组。
+3. lineStart lineEnd 用 Chunk 文件内相对行号，quote 逐字来自本文件且落在该区间（有确定性校验，不匹配会重试）。
+4. 在 ${dir}/intake/claims/${chunkId}.json 写入 {"chunkId":"${chunkId}","claims":[...]}。
+禁止调用 workflow 工具。`,
+        { label: `Chunk-Intake-${chunkId}${attempt > 1 ? '-R' + attempt : ''}`, agentType: 'general', timeoutMs: 3600000 }
+      )
+      await check(() => extractor !== null, `${chunkId} 提取第 ${attempt} 轮失败`)
+      if (await commandSuccess(`node sdd/tools/validate-claims.mjs ${feature} ${chunkId}`)) {
+        extracted = true
+      }
+    }
+    await check(() => extracted, `${chunkId} 块提取两轮失败（任一块失败不得跳过）`)
+  }
+  log('全部 Chunk 提取完成')
+
+  // 0.3 语义合并（Merge Agent + 确定性归并；冲突只登记不选边，人工裁决后重并）
+  let merged = false
+  for (let round = 1; round <= 2 && !merged; round++) {
+    const merger = await agent(
+      `你是 Claim Merge Agent。读取 ${dir}/intake/claims/ 目录下全部 CHUNK-*.json（紧凑 JSON，量小）。
+${round > 1 && `若存在 ${dir}/intake/conflict-decisions.md，按其中人工裁决处理对应冲突（解决后纳入正常合并，从 conflicts 移除）。` : ''}
+依据 sdd/rules/large-prd-intake.md 合并纪律，在 ${dir}/intake/semantic.json 写入：
+
+{"duplicateGroups":[{"kept":"L-001@CHUNK-001","merged":["L-003@CHUNK-002"],"reason":"语义相同"}],"conflicts":[{"claims":["L-002@CHUNK-001","L-001@CHUNK-003"],"description":"跨章节矛盾描述","status":"unresolved"}]}
+
+纪律：语义相同才合并并给 reason；跨章节冲突只登记 status=unresolved，禁止选边猜测；没有则空数组。
+禁止调用 workflow 工具。`,
+      { label: `Claim-Merge${round > 1 ? '-R' + round : ''}`, agentType: 'general', timeoutMs: 3600000 }
+    )
+    await check(() => merger !== null, `Claim Merge 第 ${round} 轮失败`)
+
+    if (await commandSuccess(`node sdd/tools/merge-claims.mjs ${feature} --semantic ${dir}/intake/semantic.json --expect ok`)) {
+      merged = true
+      log('Claim 合并完成：无未解决冲突')
+    } else if (await commandSuccess(`node sdd/tools/merge-claims.mjs ${feature} --semantic ${dir}/intake/semantic.json --expect conflict`)) {
+      log('Claim 合并存在未解决冲突（large-prd-conflict），等待人工裁决')
+      await checkpoint(
+        `跨章节 Claim 冲突待裁决，详见 ${dir}/intake/merge-report.json 的 conflicts。\n请将裁决（每个冲突采用哪个值或如何取舍）写入 ${dir}/intake/conflict-decisions.md 后批准继续，Agent 将按裁决重出语义报告。`,
+        { headless: 'approve' }
+      )
+    }
+  }
+  await check(() => merged, 'Claim 合并两轮未通过（冲突未解决），流程终止')
+
+  // 0.4 prdHash 冻结 + 容量门禁（超限明确阻断，保留中间产物）
+  await check(
+    () => commandSuccess(`node sdd/tools/freeze-source-map.mjs ${feature}`),
+    'source-map prdHash 冻结失败'
+  )
+  await check(
+    () => commandSuccess(`node sdd/tools/check-capacity.mjs ${feature}`),
+    '容量门禁未通过（Claim 清单或 Chunk 规模超限；intake/ 中间产物已保留，请拆分为多个 Feature 或调整 config largePrd 阈值后重跑，禁止截断继续）'
+  )
+
+  // 0.5 Chunk Gate A：逐块只读漏提审查（explore）+ 聚合 + 补漏重聚
+  for (let ci = 1; ci <= MAX_CHUNKS; ci++) {
+    const chunkId = `CHUNK-${String(ci).padStart(3, '0')}`
+    const chunkExists = await commandSuccess(`node sdd/tools/validate-chunks.mjs ${feature} --exists ${chunkId}`)
+    if (!chunkExists) break
+    const reviewer = await agent(
+      `你是 Chunk Gate A Reviewer（只读，${chunkId}）。依据 sdd/rules/large-prd-intake.md 第三节纪律审查本块提取完整性。
+
+你是只读 Reviewer，不能修改任何文件。你的回复必须只包含一个 JSON 对象，不要 markdown 围栏，不要任何解释。
+
+独立重读 ${dir}/intake/chunks/${chunkId}.md 全文（注意开头可能有 overlap 前缀行，遗漏只认主区间内容），对照 ${dir}/intake/claims/${chunkId}.json 已提取的 Claim：
+- 每条明确要求（功能 约束 例外 非目标 关键数值 异常处理）都应有对应 Claim；发现未提取的记入 missedClaims。
+- missedClaims 每条：quote（本块逐字引文）lineStart lineEnd（Chunk 文件内相对行号且落在主区间）suggestedClaimType（六枚举）reason。
+- verdict：pass（无遗漏）或 fix（存在遗漏）。
+
+你的回复必须是以下 JSON 格式（纯 JSON）：
+
+{"chunkId":"${chunkId}","verdict":"pass","missedClaims":[]}`,
+      { label: `Chunk-GateA-${chunkId}`, agentType: 'explore', timeoutMs: 3600000 }
+    )
+    await check(() => reviewer !== null, `${chunkId} Gate A 审查失败`)
+    await check(
+      () => commandSuccess(`node sdd/tools/extract-agent-json.mjs --label Chunk-GateA-${chunkId} --agentType explore --out ${dir}/intake/reviews/${chunkId}.json`),
+      `${chunkId} 审查结果提取失败`
+    )
+    await check(
+      () => commandSuccess(`node sdd/tools/validate-chunk-review.mjs ${feature} ${chunkId} --expect pass`) ||
+            commandSuccess(`node sdd/tools/validate-chunk-review.mjs ${feature} ${chunkId} --expect fix`),
+      `${chunkId} 审查结构非法`
+    )
+  }
+
+  let intakePreserved = false
+  for (let round = 1; round <= 2 && !intakePreserved; round++) {
+    if (await commandSuccess(`node sdd/tools/aggregate-intake-review.mjs ${feature} --expect pass`)) {
+      intakePreserved = true
+      log('Chunk Gate A 聚合通过：全部块无未解决遗漏')
+      break
+    }
+    if (round === 1) {
+      log('Chunk Gate A 存在未解决遗漏，补漏（large-gate-a-fix）')
+      const fixer = await agent(
+        `读取 ${dir}/intake-review.json（聚合遗漏清单，含 chunkId 与绝对行号）与 ${dir}/source-map.json。
+把每条 missedClaims 补为新 SRC（按现有最大 SRC 编号递增，不改已有）：
+- sourceRef 用给出的绝对行号与 quote；claimType 用 suggestedClaimType；loadBearing 默认 true；status 用 confirmed。
+- 同时把该 Claim 追加到对应 ${dir}/intake/claims/CHUNK-*.json（localId 按块内最大递增；行号换算为该块 Chunk 文件内相对行号 = 绝对行号 - 块文件起点 + 1，块文件起点见 manifest 的 overlapStart 或 lineStart）。
+只追加不修改已有内容，不动 prdHash。
+禁止调用 workflow 工具。`,
+        { label: 'Large-GateA-Fix', agentType: 'general', timeoutMs: 3600000 }
+      )
+      await check(() => fixer !== null, 'Chunk Gate A 补漏失败')
+      await check(
+        () => commandSuccess(`node sdd/tools/validate-claims.mjs ${feature}`),
+        '补漏后块级 Claim 校验失败'
+      )
+    }
+  }
+  await check(() => intakePreserved, 'Chunk Gate A 两轮未通过：PRD 关键 Claim 存在未处理遗漏，流程终止（Specify 不启动）')
+
+  // 0.6 处理状态与成本统计落盘（诊断，不阻断）
+  await commandSuccess(`node sdd/tools/run-report.mjs ${feature}`)
+} else {
+  // === 短需求模式：单个 Intake Agent + 整篇 Gate A（EARS-P2/P3 原有链路） ===
+  const intake = await agent(
+    `你是需求 Intake Agent。依据 sdd/rules/source-extraction.md 规则，从原始需求中逐条提取需求点。
 
 原始需求：
 ${goal}
@@ -126,11 +273,15 @@ for (let attempt = 1; attempt <= 2 && !intakePreserved; attempt++) {
   }
 }
 await check(() => intakePreserved, 'Gate A 两轮未通过：PRD 关键 Claim 存在未处理遗漏，流程终止（Specify 不启动）')
+} // 结束短需求模式分支
 
-// 1. Specify
+// 1. Specify（大文档模式读 source-map 清单，不拼整份 PRD；短模式读 goal）
 phase('Specify')
+const demandHeader = largeMode
+  ? `原始需求以 ${dir}/source-map.json 的 sources 为准（大文档模式：逐条 SRC 逐条对照，禁止遗漏；需要上下文时按 sourceRef 行号读 ${dir}/intake/chunks/ 对应片段，不要读 source-prd.md 全文）${goal ? '\n补充说明：' + goal : ''}`
+  : `依据原始需求：\n${goal}`
 const spec = await agent(
-  `依据原始需求：${goal}
+  `${demandHeader}
 
 读取以下文件：
 - sdd/templates/spec.md（新版 EARS Spec 模板）
@@ -347,10 +498,15 @@ for (let attempt = 1; attempt <= 2 && !preservationPassed; attempt++) {
 你是只读 Reviewer，不能修改任何文件。你的回复必须只包含一个 JSON 对象，不要用 markdown 围栏，不要任何解释。
 
 读取以下文件：
-1. ${dir}/source-prd.md —— 原始需求原文
+${largeMode
+  ? `1. ${dir}/source-map.json —— SRC 台账（每条含 sourceRef 绝对行号与逐字 quote 与 chunkId）
+2. ${dir}/intake/chunks/ 目录 —— 按 chunkId 与行号定位对应片段作为原文证据（大文档模式：不读 source-prd.md 全文）
+3. ${dir}/spec.md —— 需求规格
+4. sdd/rules/claim-preservation.md —— 审查规则（重点）`
+  : `1. ${dir}/source-prd.md —— 原始需求原文
 2. ${dir}/source-map.json —— SRC 台账与映射
 3. ${dir}/spec.md —— 需求规格
-4. sdd/rules/claim-preservation.md —— 审查规则（重点）
+4. sdd/rules/claim-preservation.md —— 审查规则（重点）`}
 
 审查要求：
 - claims 数组必须覆盖 source-map 的全部 SRC，一条不漏（缺失即校验失败）。

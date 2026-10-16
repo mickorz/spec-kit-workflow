@@ -60,5 +60,12 @@
       ],
       "timeoutMs": 300000
     }
+  },
+  "largePrd": {
+    "budgetTokens": 3000,
+    "overlapBlocks": 1,
+    "maxClaims": 400,
+    "maxOversizeChunks": 0,
+    "maxTotalTokens": 300000
   }
 }

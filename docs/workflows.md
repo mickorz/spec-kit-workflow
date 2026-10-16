@@ -8,10 +8,32 @@
 
 需求保真阶段（Plan 之前）保证 PRD → Spec 无遗漏、无曲解；实现收敛阶段按轮循环直至七项收敛条件全部满足。
 
+支持两种输入模式：
+
+- **短需求模式**（`goal`）：单个 Intake Agent 读全文提取 SRC + 整篇 Gate A。
+- **大文档模式**（`prdPath`，LPRD）：程序化切块 → 分块提取局部 Claim → 全局合并去重/冲突登记 → 容量门禁 → 逐块 Gate A；任何阶段不把整份 PRD 拼进 Prompt。
+
 ```mermaid
 flowchart TD
-    subgraph SG1 [需求保真阶段 Plan 之前]
-        A[原始 PRD 或 goal 输入] --> B[Intake Agent 提取 SRC 需求点]
+    subgraph SG0 [大文档模式 Intake 替换链 LPRD]
+        L1[prdPath 超长 PRD] --> L2[prd chunker 切块与 manifest]
+        L2 --> L3[validate chunks 完整性校验]
+        L3 --> L4[每块独立提取局部 Claim 有限重试]
+        L4 --> L5[Merge Agent 语义去重与冲突登记]
+        L5 -->|存在未解决冲突| L7[checkpoint 人工裁决后重并]
+        L7 --> L5
+        L5 -->|无冲突| L8[freeze source map 与容量门禁]
+        L8 -->|超限| LZ[明确阻断 保留中间产物]
+        L8 -->|通过| L9[逐块 Chunk Gate A 只读审查]
+        L9 --> LA[aggregate 聚合]
+        LA -->|fix| LB[补漏后重聚]
+        LB --> LA
+    end
+
+    LA -->|通过| D
+
+    subgraph SG1 [需求保真阶段 Plan 之前 短模式]
+        A[goal 短需求输入] --> B[Intake Agent 提取 SRC 需求点]
         B --> B1[保存 source prd 原文并冻结 prdHash]
         B1 --> C[Gate A 提取遗漏审查]
         C -->|pass 无遗漏| D[Specify 生成 EARS Spec]
@@ -65,7 +87,9 @@ flowchart TD
 
 | 阶段 | 执行者 | 产物 | 确定性校验 | 失败行为 |
 |------|--------|------|-----------|---------|
-| Intake | Intake Agent（general） | source-prd.md、source-map.json（sources 含 claimType/loadBearing/sourceRef） | freeze-source-map.mjs 冻结 prdHash | 冻结失败即终止 |
+| Intake（短模式 goal） | Intake Agent（general） | source-prd.md、source-map.json（sources 含 claimType/loadBearing/sourceRef） | freeze-source-map.mjs 冻结 prdHash | 冻结失败即终止 |
+| Intake（大模式 prdPath，LPRD） | prd-chunker + Chunk-Intake-*（general 逐块） + Claim-Merge（general） | intake/manifest.json + chunks/ + claims/ + semantic.json + merge-report.json + source-map.json | validate-chunks / validate-claims / merge-claims（--expect ok/conflict）/ check-capacity | 任一块提取两轮失败、冲突未决、容量超限均终止并保留中间产物 |
+| Chunk Gate A（大模式，LPRD） | Chunk-GateA-CHUNK-NNN（explore 只读，宿主提取落盘） | intake/reviews/ + 聚合 intake-review.json | validate-chunk-review / aggregate-intake-review（--expect） | 遗漏补漏后重聚，两轮未过终止，Specify 不启动 |
 | Gate A 提取遗漏 | Intake-Preservation-Reviewer（explore 只读，宿主 extract-agent-json 落盘） | intake-review.json（missedClaims + verdict） | validate-intake-review.mjs（--expect pass/fix） | fix 走 Gate-A-Fix 补 SRC，两轮未过终止，Specify 不启动 |
 | Specify | Specify Agent（general） | spec.md（EARS 句式，逐 SRC 对照） | — | — |
 | EARS 格式门禁 | 确定性，无 LLM | — | validate-ears.mjs（七类结构错误） | 失败即终止（P0 级格式错误不自动修复） |
@@ -89,6 +113,7 @@ flowchart TD
 3. **只读纪律**：Gate A 与 Gate B 的 Reviewer 均为 explore 只读，产物经宿主 extract-agent-json.mjs 落盘，禁止 Reviewer 自写结论。
 4. **修复循环上限**：Gate A/Gate B/EARS 语义门禁均为最多 2 轮；Implement 到 Converge 循环默认 3 轮（maxRounds 参数可调）。
 5. **决定性测试钩子**：skipRequirement 参数可要求 Implement 故意跳过指定需求，用于验证 Reviewer 独立发现遗漏的能力。
+6. **大文档模式（LPRD）**：prdPath 触发；容量门禁三项阈值（Claim 总数 / oversize 块 / 总 Token）来自 sdd/config.json 的 largePrd 节，超限明确阻断并保留 intake/ 中间产物；处理状态与成本统计落盘 intake/run-report.json；Specify 与 Gate B 在大模式下读 source-map 与 Chunk 片段，不读全文。
 
 ## 四、变更维护
 

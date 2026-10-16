@@ -82,6 +82,9 @@ NFR-001       非功能需求第 1 条
 | **局部 Claim ID** | Local Claim ID | 块内需求点编号 | 分块提取时块内独立的 L-NNN 编号（相对行号 + 块内 quote），并行提取互不冲突；全局唯一 SRC-NNN 由 merge-claims 统一分配（LPRD-P1） |
 | **merge-report** | Merge Report | 合并报告 | intake/merge-report.json：去重组（kept/merged/reason）、未解决冲突（跨章节矛盾只登记不选边）、srcAssignments（from + alsoFrom 溯源）；provenance 守恒：局部 ID 总数 = kept + alsoFrom + 冲突未分配（LPRD-P1） |
 | **Chunk Gate A** | Chunk-level Intake Review | 块级漏提审查 | 每块由只读 Reviewer 独立重读原始 Chunk 比对已提取 Claim；quote 必须落在本块主区间（责任块唯一）；聚合工具把全部块审查合并为现有 intake-review.json 契约，全部通过且冲突解决才进 Specify（LPRD-P2） |
+| **大文档模式** | Large PRD Mode | 大文档模式 | sdd_feature 的 prdPath 输入模式：程序化切块→分块提取→全局合并→容量门禁→逐块 Gate A；任何阶段不把整份 PRD 拼进 Prompt；仅 goal 时为短需求模式，两模式后续 EARS 链路共用（LPRD-P3） |
+| **容量门禁** | Capacity Gate | 容量门禁 | check-capacity.mjs 的三项阈值检查（Claim 总数 / oversize 块数 / 总 Token，阈值在 sdd/config.json 的 largePrd 节）；超限明确阻断并保留 intake/ 中间产物，禁止截断后继续（LPRD-P3） |
+| **run-report** | Run Report | 处理统计报告 | intake/run-report.json：块数/Claim 总数/去重组/冲突数/审查轮次/容量判定等确定性汇总，供成本分析与执行报告（LPRD-P3） |
 
 ### Traceability 示例
 

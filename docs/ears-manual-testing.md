@@ -23,6 +23,7 @@
 | 第三层 Audit 工作流端到端 | 是 | sdd.audit 对夹具的逐 AC 审计、标准答案对齐 |
 | 第四层 来源追踪与防漏（EARS-P2） | 否+是 | Source Coverage Gate 确定性用例 + Intake/Mapping 工作流链路 |
 | 第五层 Claim 逐条保真（EARS-P3） | 否+是 | Gate A 提取遗漏审查 + Gate B 语义保真 + 重跑链 |
+| 第六层 超长 PRD 大文档模式（LPRD） | 否+是 | 切块完整性 + 分块提取合并 + 容量门禁 + 端到端 |
 
 ```mermaid
 flowchart TD
@@ -60,6 +61,17 @@ node sdd/tools/validate-preservation-example.mjs
 ```
 
 预期：`12/12 通过, 0 失败`（PV-01~PV-12：正例、claims 缺 SRC、status 枚举、证据缺失、specHash/sourceMapHash 过期、verdict 矛盾、引用/归属错误、excluded 结构、severity 缺失、--expect 三态）。
+
+### T1.1d LPRD 工具矩阵（C/CL+M/CR/CAP）
+
+```bash
+node sdd/tools/prd-chunker-example.mjs          # 预期 11/11
+node sdd/tools/merge-claims-example.mjs         # 预期 13/13
+node sdd/tools/validate-chunk-review-example.mjs # 预期 8/8
+node sdd/tools/check-capacity-example.mjs       # 预期 4/4
+```
+
+覆盖：切块/表格围栏不切/oversize/删行篡改拒绝/稳定性；块级 Claim 校验/行号换算/去重归并/冲突退出码 2/EARS-P3 契约联动；块审查主区间判定/聚合/补漏重聚；容量门禁阻断与放行/run-report 汇总。
 
 ### T1.2 冻结 Spec 的 EARS 校验与解析
 
@@ -278,7 +290,39 @@ node sdd/tools/validate-preservation.mjs ears-manual-5
 1. 在 spec.md 追加无 PRD 依据的 FR-099（含合法 EARS AC）。
 2. validate-source-map 报 unsupported-requirement（结构层，T4.3 已覆盖）；若 Mapping Agent 错误地为其建立映射，Gate B 应在 unsupportedRequirements 中列出并触发 verdict 非 pass（LLM 级验证）。
 
-## 七、判定标准汇总
+## 七、第六层：超长 PRD 大文档模式（LPRD，需 OpenCode）
+
+### T6.1 端到端（E2E-01）
+
+1. 准备一份 ≥ 2 万字、30~50 条需求的 Markdown PRD（建议含表格、代码围栏、例外条件、非目标、跨章节重复表述）。
+2. 在 OpenCode 中运行 workflow sdd_feature，参数 `feature: lprd-manual-1`、`prdPath: <PRD 路径>`。
+3. 按序检查：切块（intake/manifest + chunks + validate 通过）→ 逐块提取（claims/ 全部生成且块级校验通过）→ 合并（merge-report 无未解决冲突或人工裁决后通过）→ 容量门禁通过 → 逐块 Gate A（reviews/ 全部生成，聚合 pass）→ 后续 EARS 链路正常 → 最终收敛。
+4. 抽查 10 条 SRC：sourceRef 行号与 quote 在 source-prd.md 中逐字可验证。
+
+### T6.2 漏提注入（E2E-02）
+
+1. 跑完 T6.1 后，从某个 claims 文件删除一条 Claim（保留 reviews 不动）。
+2. 重新运行 aggregate：`node sdd/tools/aggregate-intake-review.mjs lprd-manual-1 --expect fix`，预期退出 0（该块 review 的 missedClaims 重新变为未解决）。
+
+### T6.3 跨章节冲突注入（E2E-03）
+
+1. 在 PRD 两个章节写入矛盾的堆叠上限（99 与 999），重跑。
+2. 预期：Merge Agent 登记冲突（status=unresolved），checkpoint 弹出人工裁决；写入 intake/conflict-decisions.md 裁决后第二轮合并通过。
+
+### T6.4 容量阻断（E2E-04）
+
+1. 临时把 sdd/config.json 的 largePrd.maxClaims 调小到小于实际 Claim 数，重跑。
+2. 预期：容量门禁失败终止，intake/ 全部中间产物保留，错误信息含阈值与建议。
+
+### T6.5 短模式零回归（E2E-05）
+
+1. 仅 goal 运行 login 冒烟（同 T2.1 缩小版），行为与 EARS-P3 一致（不产生 intake/ 目录）。
+
+### T6.6 成本统计
+
+1. 查看 intake/run-report.json：块数、Claim 总数、去重组、冲突数、审查轮次；对比短模式的 Agent 调用增量。
+
+## 八、判定标准汇总
 
 | 编号 | 测试 | 通过标准 |
 |------|------|---------|
@@ -306,8 +350,14 @@ node sdd/tools/validate-preservation.mjs ears-manual-5
 | T5.3 | 过期 Review 拒绝 | specHash 失配被拒 |
 | T5.4 | 重跑链 | 四检查对同一版本重新成立 |
 | T5.5 | 无依据新增语义确认 | unsupportedRequirements 命中 |
+| T6.1 | 大文档端到端 | 切块完整 Claim 可追溯 全链收敛 |
+| T6.2 | 漏提注入重聚 | 删 Claim 后聚合变 fix |
+| T6.3 | 跨章节冲突 | 冲突登记 checkpoint 裁决后通过 |
+| T6.4 | 容量阻断 | 超限终止且中间产物保留 |
+| T6.5 | 短模式零回归 | 仅 goal 行为与 P3 一致 |
+| T6.6 | 成本统计 | run-report 字段完整 |
 
-## 八、注意事项
+## 九、注意事项
 
 1. **headless 模式**：checkpoint 在 `headless: 'approve'` 下自动批准，T2.3 的 clarify 人工确认语义需在交互模式下验证一次。
 2. **网络**：LLM 调用依赖模型 API；git push 依赖代理（本机 127.0.0.1:7897）可用。
@@ -318,7 +368,7 @@ node sdd/tools/validate-preservation.mjs ears-manual-5
 7. **P2 成本**：每个 Feature 新增 Intake 与 Source Mapping 两次 Agent 调用；确属必要的新增需求应先补 PRD 重跑，不要放宽 Source Coverage Gate。
 8. **pending 处置**：disposition=pending 的 SRC 进入 Plan 前不会被阻断（待澄清项允许存在但必须有 note），若需强制清零 pending 可在人工审批 checkpoint 时一并确认。
 
-## 九、引用说明
+## 十、引用说明
 
 - EARS 规则：`sdd/rules/ears-format.md`、`sdd/rules/ears-semantic-review.md`、`sdd/rules/source-extraction.md`
 - 工作流定义：`.opencode-workflows/workflows/sdd-feature.js`（1.5 格式门禁、1.6 语义门禁）、`.opencode-workflows/workflows/sdd-audit.js`
