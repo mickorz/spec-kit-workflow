@@ -59,6 +59,18 @@
         "tests/**/*.ts"
       ],
       "timeoutMs": 300000
+    },
+    "lprd-manual-1": {
+      "appDir": "E:WorkProjectsspec-kit-workflowdev-exampleslprd-manualapp",
+      "buildCommand": "npm run build",
+      "testCommand": "npm test",
+      "sourceGlobs": [
+        "src/**/*.js"
+      ],
+      "testGlobs": [
+        "tests/**/*.js"
+      ],
+      "timeoutMs": 300000
     }
   },
   "largePrd": {

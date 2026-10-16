@@ -44,6 +44,7 @@ if (existsSync(manifestFile) && !force) {
 }
 
 // 1. 原文字节级复制（不做任何改写）
+mkdirSync(resolve('specs', feature), { recursive: true })
 const raw = readFileSync(resolve(prdPath))
 writeFileSync(srcPrd, raw)
 const prdHash = 'sha256-' + createHash('sha256').update(raw).digest('hex')

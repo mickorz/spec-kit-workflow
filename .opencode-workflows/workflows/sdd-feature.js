@@ -45,6 +45,11 @@ if (largeMode) {
     const chunkId = `CHUNK-${String(ci).padStart(3, '0')}`
     const chunkExists = await commandSuccess(`node sdd/tools/validate-chunks.mjs ${feature} --exists ${chunkId}`)
     if (!chunkExists) break
+    // 断点续跑（幂等）：已有通过校验的 claims 则跳过该块提取（重跑不重提）
+    if (await commandSuccess(`node sdd/tools/validate-claims.mjs ${feature} ${chunkId}`)) {
+      log(`${chunkId} claims 已存在且校验通过，跳过（断点续跑）`)
+      continue
+    }
     let extracted = false
     for (let attempt = 1; attempt <= 2 && !extracted; attempt++) {
       const extractor = await agent(
@@ -74,7 +79,7 @@ if (largeMode) {
   for (let round = 1; round <= 2 && !merged; round++) {
     const merger = await agent(
       `你是 Claim Merge Agent。读取 ${dir}/intake/claims/ 目录下全部 CHUNK-*.json（紧凑 JSON，量小）。
-${round > 1 && `若存在 ${dir}/intake/conflict-decisions.md，按其中人工裁决处理对应冲突（解决后纳入正常合并，从 conflicts 移除）。` : ''}
+${round > 1 ? `若存在 ${dir}/intake/conflict-decisions.md，按其中人工裁决处理对应冲突（解决后纳入正常合并，从 conflicts 移除）。` : ''}
 依据 sdd/rules/large-prd-intake.md 合并纪律，在 ${dir}/intake/semantic.json 写入：
 
 {"duplicateGroups":[{"kept":"L-001@CHUNK-001","merged":["L-003@CHUNK-002"],"reason":"语义相同"}],"conflicts":[{"claims":["L-002@CHUNK-001","L-001@CHUNK-003"],"description":"跨章节矛盾描述","status":"unresolved"}]}
@@ -113,6 +118,14 @@ ${round > 1 && `若存在 ${dir}/intake/conflict-decisions.md，按其中人工�
     const chunkId = `CHUNK-${String(ci).padStart(3, '0')}`
     const chunkExists = await commandSuccess(`node sdd/tools/validate-chunks.mjs ${feature} --exists ${chunkId}`)
     if (!chunkExists) break
+    // 断点续跑（幂等）：已有通过校验的审查结果则跳过该块（重跑不重提）
+    if (
+      (await commandSuccess(`node sdd/tools/validate-chunk-review.mjs ${feature} ${chunkId} --expect pass`)) ||
+      (await commandSuccess(`node sdd/tools/validate-chunk-review.mjs ${feature} ${chunkId} --expect fix`))
+    ) {
+      log(`${chunkId} 审查已存在且结构合法，跳过（断点续跑）`)
+      continue
+    }
     const reviewer = await agent(
       `你是 Chunk Gate A Reviewer（只读，${chunkId}）。依据 sdd/rules/large-prd-intake.md 第三节纪律审查本块提取完整性。
 
