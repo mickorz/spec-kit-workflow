@@ -75,6 +75,10 @@ NFR-001       非功能需求第 1 条
 | **Gate B** | Claim Preservation Gate | 语义保真门禁 | 逐条核对 SRC 与 Spec 的语义保真，结论写入 preservation-review.json（锚定三哈希）；确定性校验 claims 全覆盖、证据完整、哈希一致；未通过不进 Plan（EARS-P3） |
 | **Preservation 六状态** | Preservation Status | 保真状态枚举 | preserved（完整保留）/ partial（部分保留，丢条件丢数值）/ missing（无承接）/ contradicted（语义矛盾）/ uncertain（证据不足，人工澄清）/ excluded（明确排除，核对依据） |
 | **重跑链** | Revalidation Chain | 失效校验重跑链 | 任何 Agent 修改 spec.md 后，EARS 格式、EARS 语义、Source Coverage、Claim Preservation 四类检查必须针对同一版本 Spec 重新成立；过期结论被哈希门禁拒绝（EARS-P3） |
+| **Chunk** | PRD Chunk | 文档块 | 超长 PRD 按结构化切块产生的原文片段（CHUNK-NNN），文件为原文字节级切片；由 prd-chunker 生成，validate-chunks 校验完整性（LPRD-P0） |
+| **manifest** | Chunk Manifest | 块清单 | intake/manifest.json：每块的章节路径、主覆盖行号区间、overlap 前缀、哈希与 oversize 标记；主覆盖区间必须无缺口无重叠覆盖全文（LPRD-P0） |
+| **主覆盖区间** | Primary Coverage Range | 主覆盖区间 | Chunk 的 lineStart..lineEnd；全文每行恰属一个主区间。overlap 前缀行的主归属在上一块（责任块唯一）（LPRD-P0） |
+| **oversize** | Oversize Chunk | 超限块 | 单个原子块（巨型表格/围栏）超过 Token 预算时独立成块并标记，绝不从中间切开；由容量门禁拦截（LPRD-P0/LPRD-P3） |
 
 ### Traceability 示例
 
