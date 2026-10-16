@@ -31,6 +31,8 @@ flowchart TD
 | `spec.md` | 需求真相源 | Specify Agent | Coverage/Reviewer/所有工具 | Markdown |
 | `source-prd.md` | 原始需求原文（EARS-P2） | Intake Agent（逐字写入） | validate-source-map（prdHash 基准） | Markdown |
 | `source-map.json` | 原始需求清单与来源映射（EARS-P2） | Intake Agent（sources）+ Source Mapping Agent（mappings） | validate-source-map / 人工审查 | JSON |
+| `intake-review.json` | 提取遗漏审查结论（EARS-P3） | Gate A explore Reviewer（宿主提取落盘） | validate-intake-review | JSON |
+| `preservation-review.json` | 逐条语义保真审查结论（EARS-P3） | Gate B explore Reviewer（宿主提取落盘）+ freeze-preservation | validate-preservation | JSON |
 | `plan.md` | 技术设计参考 | Plan Agent | Tasks Agent/Reviewer | Markdown |
 | `tasks.md` | 任务清单 | Tasks Agent + append-findings | Coverage/Coding Agent | Markdown |
 | `traceability.json` | 任务映射 | Tasks Agent | coverage/is-converged | JSON |
@@ -46,9 +48,22 @@ flowchart TD
 **角色**：PRD → Spec 方向的防遗漏追踪基准。
 
 - `source-prd.md`：原始需求原文逐字保存，prdHash 冻结后不可改写（validate-source-map.mjs 校验哈希）。
-- `source-map.json`：`sources`（SRC-NNN 需求点清单，Intake Agent 写入）+ `mappings`（每 SRC 一条处置：covered/excluded/pending，Source Mapping Agent 写入）。
-- 校验规则：每个 SRC 必须有处置结果；covered 引用须真实存在且归属正确；Spec 中每个 FR/NFR 必须追溯到至少一个 SRC（拦截无依据新增）。
+- `source-map.json`：`sources`（SRC-NNN 需求点清单，含 claimType/loadBearing/sourceRef 元数据，Intake Agent 写入）+ `mappings`（每 SRC 一条处置：covered/excluded/pending，Source Mapping Agent 写入）。
+- 校验规则：每个 SRC 必须有处置结果；covered 引用须真实存在且归属正确；loadBearing functional exception 的 covered 必须含 AC；quote 与原文行号区间一致；Spec 中每个 FR/NFR 必须追溯到至少一个 SRC（拦截无依据新增）。
 - 位置：Source Coverage Gate 位于 Plan 之前，未通过则阻断流程。
+
+### 3.0.1 intake-review.json 与 preservation-review.json（EARS-P3 新增）
+
+**角色**：Claim 逐条保真的审查结论（独立于 source-map 的声明式映射）。
+
+| Artifact | 写入者 | 校验器 | 锚定哈希 |
+|---------|--------|--------|---------|
+| `intake-review.json` | Gate A explore Reviewer（宿主 extract-agent-json 落盘） | validate-intake-review.mjs | prdHash |
+| `preservation-review.json` | Gate B explore Reviewer（宿主 extract-agent-json 落盘）+ freeze-preservation.mjs 冻结三哈希 | validate-preservation.mjs | prdHash + specHash + sourceMapHash |
+
+- intake-review：missedClaims（quote/lineStart/lineEnd/suggestedClaimType/reason）+ verdict pass/fix；两轮内补齐否则 Specify 不启动。
+- preservation-review：claims 覆盖全部 SRC、六状态枚举、证据要求（非 preserved 需 sourceEvidence+finding，partial/contradicted 还需 specEvidence）、unsupportedRequirements、verdict pass/fix/clarify；哈希不匹配即过期结论拒绝（重跑链保障）。
+- 位置：Gate A 在 Specify 前，Gate B 在 Plan 前；均为 explore 只读 + 宿主侧持久化，禁止 Reviewer 自写。
 
 ### 3.1 spec.md
 

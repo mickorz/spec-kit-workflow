@@ -51,7 +51,19 @@ Spec 中的 FR/NFR 若无法追溯到任何 SRC：
   "feature": "login",
   "prdHash": "sha256-（source-prd.md 的哈希，由工具校验，Agent 留空或照抄上一次值）",
   "sources": [
-    { "sourceId": "SRC-001", "text": "连续 5 次密码错误锁定 15 分钟", "status": "confirmed" }
+    {
+      "sourceId": "SRC-001",
+      "text": "连续 5 次密码错误锁定 15 分钟",
+      "status": "confirmed",
+      "claimType": "functional",
+      "loadBearing": true,
+      "sourceRef": {
+        "file": "source-prd.md",
+        "lineStart": 3,
+        "lineEnd": 3,
+        "quote": "连续 5 次密码错误锁定 15 分钟"
+      }
+    }
   ],
   "mappings": [
     {
@@ -67,3 +79,24 @@ Spec 中的 FR/NFR 若无法追溯到任何 SRC：
 
 - SRC-NNN 三位数字，全局唯一，按原文出现顺序编号。
 - prdHash 以 validate-source-map.mjs 计算结果为准（`node sdd/tools/freeze-source-map.mjs` 可自动填充；未填充时 Gate 报 prd-hash 错误）。
+
+## 六、Claim 元数据（EARS-P3）
+
+每个 source 除 sourceId/text/status 外，必须携带：
+
+| 字段 | 类型 | 说明 |
+|------|------|------|
+| `claimType` | 枚举 | `functional`（功能）/ `constraint`（约束）/ `exception`（例外）/ `non-goal`（非目标）/ `assumption`（假设）/ `decision`（决策） |
+| `loadBearing` | 布尔 | 是否影响下游开发决策。否定性约束、非目标、关键数值、例外处理通常为 true |
+| `sourceRef` | 对象 | `{ file, lineStart, lineEnd, quote }`，指向 source-prd.md 的原文位置 |
+
+纪律：
+
+1. `sourceRef.quote` 必须是 source-prd.md 中逐字存在的原文片段，行号区间 lineStart..lineEnd 拼接后必须包含该引文（确定性校验，不接受只填行号不引原文）。
+2. `sourceRef.file` 固定为 `source-prd.md`。
+3. 不能只提取功能需求：否定性约束（non-goal）、约束（constraint）、例外（exception）、关键数值与异常处理同样必须提取，且常为 loadBearing。
+4. Gate A（Intake Preservation）会独立重读原文比对 SRC 台账，漏提会被拦下并要求补充。
+
+## 七、AC 映射强制（EARS-P3）
+
+disposition=covered 且 `loadBearing=true` 且 `claimType ∈ {functional, exception}` 时，mapping 的 acceptanceIds 不得为空——关键行为/例外条件必须进入可验收的 AC，否则 Source Coverage Gate 拒绝。

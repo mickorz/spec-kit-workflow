@@ -56,16 +56,19 @@ const SPEC = `# Feature: 自测
 - AC-003: The 登录服务 shall 保证响应时间不超过 500ms。
 `
 
-const PRD = '需求1：点击登录发起请求。需求2：密码错误返回提示。需求3：响应不超过500ms。'
+const PRD = '需求1：点击登录发起请求。\n需求2：密码错误返回提示。\n需求3：响应不超过500ms。'
 
 function baseMap() {
   return {
     feature,
     prdHash: '',
     sources: [
-      { sourceId: 'SRC-001', text: '点击登录发起请求', status: 'confirmed' },
-      { sourceId: 'SRC-002', text: '密码错误返回提示', status: 'confirmed' },
-      { sourceId: 'SRC-003', text: '响应不超过500ms', status: 'confirmed' }
+      { sourceId: 'SRC-001', text: '点击登录发起请求', status: 'confirmed', claimType: 'functional', loadBearing: true,
+        sourceRef: { file: 'source-prd.md', lineStart: 1, lineEnd: 1, quote: '点击登录发起请求' } },
+      { sourceId: 'SRC-002', text: '密码错误返回提示', status: 'confirmed', claimType: 'functional', loadBearing: true,
+        sourceRef: { file: 'source-prd.md', lineStart: 2, lineEnd: 2, quote: '密码错误返回提示' } },
+      { sourceId: 'SRC-003', text: '响应不超过500ms', status: 'confirmed', claimType: 'constraint', loadBearing: false,
+        sourceRef: { file: 'source-prd.md', lineStart: 3, lineEnd: 3, quote: '响应不超过500ms' } }
     ],
     mappings: [
       { sourceId: 'SRC-001', requirementIds: ['FR-001'], acceptanceIds: ['AC-001'], disposition: 'covered', note: null },
@@ -161,6 +164,34 @@ cases.push({
 addCase('S12', 'pending 带映射', m => {
   m.mappings[2] = { sourceId: 'SRC-003', requirementIds: ['NFR-001'], acceptanceIds: ['AC-003'], disposition: 'pending', note: '阈值待定' }
 }, 1, ['disposition'])
+
+// S13 quote 与原文不一致（EARS-P3）
+addCase('S13', 'quote 与原文不一致', m => {
+  m.sources[0].sourceRef.quote = '原文中不存在的引文内容'
+}, 1, ['quote-mismatch'])
+
+// S14 loadBearing functional covered 无 AC（EARS-P3）
+addCase('S14', 'loadBearing functional 缺 AC', m => {
+  m.mappings[0].acceptanceIds = []
+}, 1, ['ac-required'])
+
+// S15 claimType 枚举外（EARS-P3）
+addCase('S15', 'claimType 枚举外', m => {
+  m.sources[0].claimType = 'performance'
+}, 1, ['bad-claim-type'])
+
+// S16 non-goal 类 covered 无 AC 允许通过（EARS-P3）：SRC-003 改为 non-goal，映射到存在的 FR-002 且无 AC，配套 spec 无 NFR
+cases.push({
+  id: 'S16', name: 'non-goal 无 AC 允许',
+  mutate: m => {
+    m.sources[2].claimType = 'non-goal'
+    m.sources[2].text = '不做什么的范围声明'
+    m.sources[2].sourceRef.quote = '响应不超过500ms'
+    m.mappings[2] = { sourceId: 'SRC-003', requirementIds: ['FR-002'], acceptanceIds: [], disposition: 'covered', note: null }
+  },
+  spec: SPEC_NO_NFR,
+  expectCode: 0, expectTypes: []
+})
 
 // --- 执行 ---
 let passed = 0

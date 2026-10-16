@@ -67,6 +67,14 @@ NFR-001       非功能需求第 1 条
 | **source-map** | Source Map | 来源映射表 | `specs/<feature>/source-map.json`，记录 sources（SRC 需求点清单）与 mappings（SRC 到 FR/NFR/AC 的处置映射），由 `validate-source-map.mjs` 确定性校验 |
 | **disposition** | Disposition | 处置结果 | source-map 中每个 SRC 的处理结论，枚举：`covered`（已转换，requirementIds 必填）/ `excluded`（明确不做，须 note 理由）/ `pending`（待澄清，须 note）。不允许静默丢失 |
 | **Source Coverage Gate** | Source Coverage Gate | 来源覆盖门禁 | `validate-source-map.mjs` 执行的确定性检查：每个 SRC 必须有处置结果、covered 引用必须真实存在且归属正确、Spec 中每个 FR/NFR 必须追溯到至少一个 SRC（反向拦截无依据新增）。位于 Plan 之前 |
+| **Claim** | Claim | 需求声明 | PRD 中一条可独立验证的原始陈述，即 SRC 需求点。BMAD Claim Preservation 思想：每条声明都必须被逐条验证在后续产物中语义保真（EARS-P3） |
+| **claimType** | Claim Type | 声明类型 | 六枚举：functional（功能）/ constraint（约束）/ exception（例外）/ non-goal（非目标）/ assumption（假设）/ decision（决策）。否定性约束与非目标不是 FR 但也不能丢 |
+| **loadBearing** | Load-bearing Claim | 承重声明 | 布尔标记：该 Claim 是否影响下游开发决策。为 true 且 claimType 为 functional/exception 的 covered 映射必须含 AC |
+| **sourceRef** | Source Reference | 来源引用 | source-map 中每 SRC 的原文定位：file（固定 source-prd.md）+ lineStart/lineEnd（行号）+ quote（原文逐字引文）。确定性校验行号区间内包含引文 |
+| **Gate A** | Intake Preservation Gate | 提取遗漏门禁 | 独立只读 Reviewer 重读 PRD 原文比对 SRC 台账，漏提记入 intake-review.json 的 missedClaims；两轮内补齐否则 Specify 不启动（EARS-P3） |
+| **Gate B** | Claim Preservation Gate | 语义保真门禁 | 逐条核对 SRC 与 Spec 的语义保真，结论写入 preservation-review.json（锚定三哈希）；确定性校验 claims 全覆盖、证据完整、哈希一致；未通过不进 Plan（EARS-P3） |
+| **Preservation 六状态** | Preservation Status | 保真状态枚举 | preserved（完整保留）/ partial（部分保留，丢条件丢数值）/ missing（无承接）/ contradicted（语义矛盾）/ uncertain（证据不足，人工澄清）/ excluded（明确排除，核对依据） |
+| **重跑链** | Revalidation Chain | 失效校验重跑链 | 任何 Agent 修改 spec.md 后，EARS 格式、EARS 语义、Source Coverage、Claim Preservation 四类检查必须针对同一版本 Spec 重新成立；过期结论被哈希门禁拒绝（EARS-P3） |
 
 ### Traceability 示例
 

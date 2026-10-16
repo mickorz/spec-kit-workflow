@@ -17,6 +17,12 @@
 //   ownership              AC 归属与映射的 requirement 不符
 //   unsupported-requirement spec 中的 FR/NFR 无任何 SRC 依据（反向防漏核心）
 //   prd-hash               prdHash 与 source-prd.md 实际哈希不符
+//   missing-claim-meta     source 缺少 claimType/loadBearing/sourceRef（EARS-P3）
+//   bad-claim-type         claimType 枚举外（EARS-P3）
+//   bad-load-bearing       loadBearing 非布尔（EARS-P3）
+//   bad-source-ref         sourceRef 结构不完整或 file 不是 source-prd.md（EARS-P3）
+//   quote-mismatch         sourceRef.quote 与原文行号区间不一致（EARS-P3）
+//   ac-required            loadBearing functional exception 的 covered 映射缺 AC（EARS-P3）
 
 import { readFileSync, existsSync } from 'node:fs'
 import { resolve } from 'node:path'
@@ -75,8 +81,19 @@ if (map) {
   }
 }
 
-// --- 2. SRC ID 检查 + 一一对应 ---
+const CLAIM_TYPES = ['functional', 'constraint', 'exception', 'non-goal', 'assumption', 'decision']
+
+function normalizeWs(s) {
+  return String(s).replace(/\s+/g, ' ').trim()
+}
+
+// --- 2. SRC ID 检查 + Claim 元数据 + 一一对应 ---
 const srcIds = []
+const srcById = new Map()
+let prdLines = null
+if (existsSync(prdFile)) {
+  prdLines = readFile(prdFile).split('\n')
+}
 if (map && Array.isArray(map.sources)) {
   const seen = new Set()
   for (const s of map.sources) {
@@ -90,11 +107,50 @@ if (map && Array.isArray(map.sources)) {
     }
     seen.add(id)
     srcIds.push(id)
+    srcById.set(id, s)
     if (!s.text || String(s.text).trim().length === 0) {
       fail({ target: id, type: 'structure', message: 'text 为空' })
     }
     if (s.status !== 'confirmed' && s.status !== 'assumed') {
       fail({ target: id, type: 'structure', message: `status "${s.status}" 不在枚举 confirmed|assumed 中` })
+    }
+
+    // --- EARS-P3：Claim 元数据校验 ---
+    const claimType = s.claimType
+    const loadBearing = s.loadBearing
+    const ref = s.sourceRef
+    if (!claimType || loadBearing === undefined || loadBearing === null || !ref) {
+      fail({ target: id, type: 'missing-claim-meta', message: '缺少 claimType / loadBearing / sourceRef（EARS-P3 契约必填）' })
+    } else {
+      if (!CLAIM_TYPES.includes(claimType)) {
+        fail({ target: id, type: 'bad-claim-type', message: `claimType "${claimType}" 不在枚举 ${CLAIM_TYPES.join('|')} 中` })
+      }
+      if (typeof loadBearing !== 'boolean') {
+        fail({ target: id, type: 'bad-load-bearing', message: `loadBearing 应为布尔，收到 ${typeof loadBearing}` })
+      }
+      if (!ref.file || !Number.isInteger(ref.lineStart) || !Number.isInteger(ref.lineEnd)) {
+        fail({ target: id, type: 'bad-source-ref', message: 'sourceRef 缺少 file/lineStart/lineEnd 或类型错误' })
+      } else {
+        if (ref.file !== 'source-prd.md') {
+          fail({ target: id, type: 'bad-source-ref', message: `sourceRef.file 应为 source-prd.md，收到 ${ref.file}` })
+        }
+        if (ref.lineStart < 1 || ref.lineEnd < ref.lineStart) {
+          fail({ target: id, type: 'bad-source-ref', message: `sourceRef 行号区间非法: ${ref.lineStart}..${ref.lineEnd}` })
+        } else if (prdLines) {
+          // 引文一致性：lineStart..lineEnd 拼接后必须包含 quote（空白归一化匹配）
+          if (!ref.quote || String(ref.quote).trim().length === 0) {
+            fail({ target: id, type: 'quote-mismatch', message: 'sourceRef.quote 为空（必须提供原文引文）' })
+          } else if (ref.lineEnd > prdLines.length) {
+            fail({ target: id, type: 'quote-mismatch', message: `sourceRef 行号越界: ${ref.lineEnd} > 原文总行数 ${prdLines.length}` })
+          } else {
+            const rangeText = normalizeWs(prdLines.slice(ref.lineStart - 1, ref.lineEnd).join(' '))
+            const quoteText = normalizeWs(ref.quote)
+            if (!rangeText.includes(quoteText)) {
+              fail({ target: id, type: 'quote-mismatch', message: `quote 与原文 ${ref.lineStart}..${ref.lineEnd} 行内容不一致（不接受只填行号不引原文）` })
+            }
+          }
+        }
+      }
     }
   }
 }
@@ -164,6 +220,16 @@ if (map && Array.isArray(map.mappings)) {
         } else if (!reqIds.includes(owner)) {
           fail({ target: id, type: 'ownership', message: `AC ${a} 属于 ${owner}，不能映射到 ${reqIds.join(', ')}` })
         }
+      }
+
+      // --- EARS-P3：loadBearing functional/exception 的 covered 映射必须含 AC ---
+      const src = srcById.get(id)
+      if (src && src.loadBearing === true && ['functional', 'exception'].includes(src.claimType) && acIds.length === 0) {
+        fail({
+          target: id,
+          type: 'ac-required',
+          message: `claimType=${src.claimType} 且 loadBearing=true 的 covered 映射 acceptanceIds 为空（关键条件必须进入 AC）`
+        })
       }
     }
   }

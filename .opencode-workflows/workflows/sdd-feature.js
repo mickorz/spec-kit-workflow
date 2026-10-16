@@ -33,20 +33,29 @@ ${goal}
 要求：
 1. 先将原始需求原文逐字写入 ${dir}/source-prd.md（不得改写概括补充，如目录不存在请先创建）。
 2. 提取每个可独立验证的需求点为 SRC-NNN（三位数字，按原文出现顺序），一条不漏。
-3. 非功能要求（性能 安全 日志 合规）也必须提取。
+3. 非功能要求（性能 安全 日志 合规）、否定性约束（不做什么）、例外条件、关键数值也必须提取。
 4. status 只用 confirmed（原文明确）或 assumed（推断，text 中注明推断依据）。
-5. 在 ${dir}/source-map.json 写入：
+5. 每个 SRC 必须携带 Claim 元数据：claimType（functional constraint exception non-goal assumption decision 六枚举）、loadBearing（是否影响下游开发决策，布尔）、sourceRef（file 固定 source-prd.md，lineStart lineEnd 为原文行号，quote 为原文逐字引文，行号区间内必须包含该引文）。
+6. 在 ${dir}/source-map.json 写入：
 
 {
   "feature": "${feature}",
   "prdHash": "",
   "sources": [
-    { "sourceId": "SRC-001", "text": "需求点原文或保守转述", "status": "confirmed" }
+    {
+      "sourceId": "SRC-001",
+      "text": "需求点原文或保守转述",
+      "status": "confirmed",
+      "claimType": "functional",
+      "loadBearing": true,
+      "sourceRef": { "file": "source-prd.md", "lineStart": 1, "lineEnd": 1, "quote": "原文逐字引文" }
+    }
   ],
   "mappings": []
 }
 
 注意：prdHash 留空，由工具填充；mappings 留空数组，由后续 Mapping 阶段填写。
+后续会有独立 Gate 重读原文比对遗漏，并确定性校验引文与行号一致性。
 禁止调用 workflow 工具。`,
   { label: 'Intake', agentType: 'general', timeoutMs: 3600000 }
 )
@@ -59,6 +68,64 @@ await check(
   () => commandSuccess(`node sdd/tools/freeze-source-map.mjs ${feature}`),
   'source-map prdHash 冻结失败'
 )
+
+// 0.5 Gate A：Intake Preservation（独立遗漏审查，explore 只读；两轮内补齐遗漏，否则 Specify 不启动）
+let intakePreserved = false
+for (let attempt = 1; attempt <= 2 && !intakePreserved; attempt++) {
+  const intakeReviewPrompt = `你是 Intake Preservation Reviewer（只读）。依据 sdd/rules/claim-preservation.md 第一节纪律，独立审查 PRD 到 SRC 的提取完整性。
+
+你是只读 Reviewer，不能修改任何文件。你的回复必须只包含一个 JSON 对象，不要用 markdown 围栏，不要任何解释。
+
+独立通读以下文件（不得预设已有 SRC 是完整的）：
+1. ${dir}/source-prd.md —— 原始需求原文
+2. ${dir}/source-map.json —— 已提取的 SRC 台账
+
+审查要求：
+- 逐段核对原文：每一条明确要求（功能 约束 例外 非目标 关键数值 异常处理）都应有对应 SRC。
+- 发现未提取的关键陈述记入 missedClaims：quote（原文逐字引文）lineStart lineEnd（行号）suggestedClaimType（六枚举）reason（为什么是关键 Claim）。
+- verdict：pass（无遗漏，missedClaims 空数组）或 fix（存在遗漏）。没有 clarify，漏了就补。
+
+你的回复必须是以下 JSON 格式（纯 JSON）：
+
+{"feature":"${feature}","verdict":"pass","prdHash":"","missedClaims":[]}`
+
+  const reviewerA = await agent(intakeReviewPrompt, {
+    label: 'Intake-Preservation-Reviewer',
+    agentType: 'explore',
+    timeoutMs: 3600000
+  })
+  await check(() => reviewerA !== null, `Gate A 第 ${attempt} 轮审查失败`)
+  await check(
+    () => commandSuccess(`node sdd/tools/extract-agent-json.mjs --label Intake-Preservation-Reviewer --agentType explore --out ${dir}/intake-review.json`),
+    'intake-review.json 提取失败'
+  )
+
+  if (await commandSuccess(`node sdd/tools/validate-intake-review.mjs ${feature} --expect pass`)) {
+    log('Gate A 通过：Intake 无关键遗漏')
+    intakePreserved = true
+    break
+  }
+
+  if (attempt < 2) {
+    const gateAFix = await commandSuccess(`node sdd/tools/validate-intake-review.mjs ${feature} --expect fix`)
+    if (gateAFix) {
+      log(`Gate A：发现漏提 Claim，补充 sources（gate-a-fix 第 ${attempt} 轮）`)
+      const fixerA = await agent(
+        `读取 ${dir}/intake-review.json 与 ${dir}/source-map.json。
+把 missedClaims 逐条追加为新 SRC（按现有最大编号递增，不改已有 SRC）：
+- claimType 用 suggestedClaimType，loadBearing 默认 true。
+- sourceRef 的 lineStart lineEnd quote 直接用 missedClaims 提供的行号与引文。
+- status 用 confirmed。
+只追加 sources，不动 mappings 与 prdHash，重写 ${dir}/source-map.json。
+禁止调用 workflow 工具。`,
+        { label: `Gate-A-Fix-${attempt}`, agentType: 'general', timeoutMs: 3600000 }
+      )
+      await check(() => fixerA !== null, 'Gate A 补充遗漏失败')
+    }
+    // 结构非法时不修复，直接由下一轮重审拿到新鲜输出
+  }
+}
+await check(() => intakePreserved, 'Gate A 两轮未通过：PRD 关键 Claim 存在未处理遗漏，流程终止（Specify 不启动）')
 
 // 1. Specify
 phase('Specify')
@@ -241,14 +308,139 @@ for (let attempt = 1; attempt <= 2; attempt++) {
 - mapping 缺失或 disposition 错误 → 修正 ${dir}/source-map.json 的 mappings。
 - unsupported-requirement（Spec 需求无 SRC 依据）→ 若确属必要新增，从 spec.md 中删除该需求；若它是某条 SRC 的合理细化，把映射补到对应 SRC。
 - unknown-id 或 ownership → 修正引用。
+- ac-required（关键条件未进 AC）→ 在 spec.md 对应需求下补 EARS 句式的 AC 并补进 acceptanceIds。
+- quote-mismatch → 修正 sourceRef 的行号或 quote 为原文真实内容。
 - prd-hash → 仅当 source-prd.md 未被人为改写时，运行 node sdd/tools/freeze-source-map.mjs ${feature}。
 禁止调用 workflow 工具。`,
       { label: 'Source-Map-Fix', agentType: 'general', timeoutMs: 3600000 }
     )
     await check(() => fixer !== null, 'Source Map 修复失败')
+
+    // 重跑链（EARS-P3）：修复可能改了 spec.md，必须重过 EARS 格式门禁与语义审查，
+    // 否则此前通过的 EARS 质量结论针对的是旧版 Spec（失效校验）
+    await check(
+      () => commandSuccess(`node sdd/tools/validate-ears.mjs ${feature}`),
+      'Source Map 修复后 EARS 格式校验失败（format-error）'
+    )
+    const earsRecheck = await agent(
+      `你是独立的 EARS 语义 Reviewer（重跑链）。上一轮门禁后 spec.md 被修复 Agent 修改过，需要重新审查。
+读取 ${dir}/spec.md、sdd/rules/ears-format.md、sdd/rules/ears-semantic-review.md。
+按语义审查规则出结论，在 ${dir}/ears-review.json 写入（verdict pass fix clarify + issues，与既往格式一致）。
+禁止调用 workflow 工具。`,
+      { label: 'EARS-Review-Rerun', agentType: 'general', timeoutMs: 3600000 }
+    )
+    await check(() => earsRecheck !== null, '重跑链 EARS 语义审查失败')
+    await check(
+      () => commandSuccess(`node sdd/tools/ears-review-verdict.mjs ${feature} --expect pass`),
+      '重跑链 EARS 语义审查未通过（spec 修复引入了语义问题，需人工介入）'
+    )
   }
 }
 await check(() => sourceCoveragePassed, 'Source Coverage Gate 修复一轮后仍未通过，流程终止（PRD 需求未被完整处置）')
+
+// 1.8 Gate B：Claim Preservation（SRC 到 Spec 语义保真，explore 只读 + 确定性哈希门禁）
+phase('Claim Preservation')
+let preservationPassed = false
+for (let attempt = 1; attempt <= 2 && !preservationPassed; attempt++) {
+  const preservationPrompt = `你是 Claim Preservation Reviewer（只读）。依据 sdd/rules/claim-preservation.md 第二节纪律，逐条核对原始需求 Claim 与 Spec 的语义保真。
+
+你是只读 Reviewer，不能修改任何文件。你的回复必须只包含一个 JSON 对象，不要用 markdown 围栏，不要任何解释。
+
+读取以下文件：
+1. ${dir}/source-prd.md —— 原始需求原文
+2. ${dir}/source-map.json —— SRC 台账与映射
+3. ${dir}/spec.md —— 需求规格
+4. sdd/rules/claim-preservation.md —— 审查规则（重点）
+
+审查要求：
+- claims 数组必须覆盖 source-map 的全部 SRC，一条不漏（缺失即校验失败）。
+- 六状态枚举：preserved partial missing contradicted uncertain excluded；组合语义分析（一条 SRC 可由多个 FR AC 共同实现）。
+- 非 preserved 必须给 sourceEvidence（原文引文）与 finding；partial 和 contradicted 还必须给 specEvidence（Spec 原文引文）。
+- 数值敏感性：原文 99 写成 999 是 contradicted 或 partial，不是大体保留。
+- 例外敏感性：丢失除非可以继续堆叠类例外条件是 partial，即使主行为已实现。
+- excluded 状态需核对 source-map 中该 SRC 的 disposition 是否为 excluded 且有 note。
+- unsupportedRequirements：spec 中无法追溯到任何 SRC 的 FR NFR ID 列表。
+- severity：非 preserved 默认 blocker；verdict：pass 无 blocker / fix 可修复 / clarify 存在 uncertain 需业务决策。有 blocker 时 verdict 不得为 pass。
+
+你的回复必须是以下 JSON 格式（纯 JSON，三个哈希留空字符串）：
+
+{"feature":"${feature}","verdict":"pass","prdHash":"","specHash":"","sourceMapHash":"","claims":[{"sourceId":"SRC-001","requirementIds":["FR-001"],"acceptanceIds":["AC-001"],"status":"preserved","severity":"warning","sourceEvidence":null,"specEvidence":null,"finding":null}],"intakeFindings":[],"unsupportedRequirements":[]}`
+
+  const reviewerB = await agent(preservationPrompt, {
+    label: 'Claim-Preservation-Reviewer',
+    agentType: 'explore',
+    timeoutMs: 3600000
+  })
+  await check(() => reviewerB !== null, `Gate B 第 ${attempt} 轮审查失败`)
+  await check(
+    () => commandSuccess(`node sdd/tools/extract-agent-json.mjs --label Claim-Preservation-Reviewer --agentType explore --out ${dir}/preservation-review.json`),
+    'preservation-review.json 提取失败'
+  )
+  await check(
+    () => commandSuccess(`node sdd/tools/freeze-preservation.mjs ${feature}`),
+    'preservation 哈希冻结失败'
+  )
+
+  if (await commandSuccess(`node sdd/tools/validate-preservation.mjs ${feature} --expect pass`)) {
+    log('Gate B 通过：全部 Claim 语义保真，无过期审查')
+    preservationPassed = true
+    break
+  }
+
+  if (attempt < 2) {
+    if (await commandSuccess(`node sdd/tools/validate-preservation.mjs ${feature} --expect clarify`)) {
+      log('Gate B：preservation-clarify（存在 uncertain Claim，等待人工澄清）')
+      await checkpoint(
+        `Claim 保真审查发现无法判定的 Claim（详见 ${dir}/preservation-review.json 中 status=uncertain 的条目）。\n请在澄清业务决策后批准继续，Agent 将按澄清结论修订并重新走保真审查。`,
+        { headless: 'approve' }
+      )
+      const reviserB = await agent(
+        `读取 ${dir}/preservation-review.json 与 ${dir}/spec.md。人工已通过 checkpoint 批准继续（视为对 uncertain Claim 的确认）。
+依据 claims 中 status=uncertain 条目的 sourceEvidence 与 finding，把保守明确的实现写入 spec.md（保持 EARS 句式与既有 ID 稳定，禁止新增未确认业务数值）。
+禁止调用 workflow 工具。`,
+        { label: `Preservation-Clarify-${attempt}`, agentType: 'general', timeoutMs: 3600000 }
+      )
+      await check(() => reviserB !== null, 'Gate B 澄清修订失败')
+    } else {
+      log(`Gate B：preservation-fix（第 ${attempt} 轮修复）`)
+      const fixerB = await agent(
+        `运行 node sdd/tools/validate-preservation.mjs ${feature} 查看诊断输出，并读取 ${dir}/preservation-review.json 的 claims。
+依据 finding 修复：
+- partial 或 missing → 修 spec.md：补齐丢失的条件 数值 例外（EARS 句式，ID 稳定），必要时同步补 source-map 的映射。
+- contradicted → 修 spec.md 中与原文矛盾的表述。
+- missing-claim（某 SRC 未被审查）不修复，由下一轮重审覆盖。
+- 修复只针对 finding 涉及内容，禁止重写无关内容。
+禁止调用 workflow 工具。`,
+        { label: `Preservation-Fix-${attempt}`, agentType: 'general', timeoutMs: 3600000 }
+      )
+      await check(() => fixerB !== null, `Gate B 修复第 ${attempt} 轮失败`)
+    }
+
+    // 重跑链（EARS-P3）：spec 或 source-map 被修改后，四类检查必须重新针对同一版本成立
+    await check(
+      () => commandSuccess(`node sdd/tools/validate-ears.mjs ${feature}`),
+      'Gate B 修复后 EARS 格式校验失败（format-error）'
+    )
+    const earsRecheckB = await agent(
+      `你是独立的 EARS 语义 Reviewer（重跑链）。上一轮门禁后 spec.md 被修改过，需要重新审查。
+读取 ${dir}/spec.md、sdd/rules/ears-format.md、sdd/rules/ears-semantic-review.md。
+按语义审查规则出结论，在 ${dir}/ears-review.json 写入（verdict pass fix clarify + issues，与既往格式一致）。
+禁止调用 workflow 工具。`,
+      { label: `EARS-Review-Rerun-B${attempt}`, agentType: 'general', timeoutMs: 3600000 }
+    )
+    await check(() => earsRecheckB !== null, '重跑链 EARS 语义审查失败')
+    await check(
+      () => commandSuccess(`node sdd/tools/ears-review-verdict.mjs ${feature} --expect pass`),
+      '重跑链 EARS 语义审查未通过（需人工介入）'
+    )
+    await check(
+      () => commandSuccess(`node sdd/tools/validate-source-map.mjs ${feature}`),
+      'Gate B 修复后 Source Coverage 校验失败（映射与 Spec 不一致）'
+    )
+    // Gate B 本体由循环下一轮重审（fresh 哈希）
+  }
+}
+await check(() => preservationPassed, 'Gate B 两轮未通过：Claim 语义保真未达成，流程终止（Plan 不启动）')
 
 // 2. Plan
 phase('Plan')

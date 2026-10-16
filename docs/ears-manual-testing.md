@@ -22,6 +22,7 @@
 | 第二层 Feature 工作流端到端 | 是 | sdd.feature 全流程含双门禁、修复循环、决定性测试 |
 | 第三层 Audit 工作流端到端 | 是 | sdd.audit 对夹具的逐 AC 审计、标准答案对齐 |
 | 第四层 来源追踪与防漏（EARS-P2） | 否+是 | Source Coverage Gate 确定性用例 + Intake/Mapping 工作流链路 |
+| 第五层 Claim 逐条保真（EARS-P3） | 否+是 | Gate A 提取遗漏审查 + Gate B 语义保真 + 重跑链 |
 
 ```mermaid
 flowchart TD
@@ -44,13 +45,21 @@ node sdd/tools/validate-ears-example.mjs
 
 预期：`13/13 通过, 0 失败`（V01-V13 覆盖五句式、复合句式、折行、全角逗号、缺 shall、双 shall、中文关键字、空条件、无 AC、孤儿 AC、重复 ID、诊断格式）。
 
-### T1.1b Source Coverage 校验器用例矩阵（EARS-P2）
+### T1.1b Source Coverage 校验器用例矩阵（EARS-P2 + P3 扩展）
 
 ```bash
 node sdd/tools/validate-source-map-example.mjs
 ```
 
-预期：`12/12 通过, 0 失败`（S01-S12 覆盖完整正例、excluded/pending 带理由、缺 mapping、无理由排除、空引用、未知 ID、AC 错误归属、无依据新增、重复 SRC、prdHash 不匹配、pending 带映射）。
+预期：`16/16 通过, 0 失败`（S01-S12 见 P2；S13-S16 为 P3 新增：quote 不一致、loadBearing functional 缺 AC、claimType 枚举外、non-goal 无 AC 允许）。
+
+### T1.1c Preservation 校验器用例矩阵（EARS-P3）
+
+```bash
+node sdd/tools/validate-preservation-example.mjs
+```
+
+预期：`12/12 通过, 0 失败`（PV-01~PV-12：正例、claims 缺 SRC、status 枚举、证据缺失、specHash/sourceMapHash 过期、verdict 矛盾、引用/归属错误、excluded 结构、severity 缺失、--expect 三态）。
 
 ### T1.2 冻结 Spec 的 EARS 校验与解析
 
@@ -234,7 +243,42 @@ feature: ears-manual-v1
 1. 修改 source-prd.md 任意内容后执行 `node sdd/tools/validate-source-map.mjs ears-manual-4`。
 2. 预期：失败，错误含 `[prd-hash]`。恢复原文后通过。
 
-## 六、判定标准汇总
+## 六、第五层：Claim 逐条保真（EARS-P3，需 OpenCode）
+
+### T5.1 Gate A 提取遗漏拦截（P3-01）
+
+1. 运行 sdd_feature（feature: ears-manual-5），goal 使用含 5 条明确需求的描述。
+2. 观察 Intake 后的 Gate A：若 Intake 漏提，日志出现 `Gate A：发现漏提 Claim`，Gate-A-Fix 补充 SRC 后重审通过。
+3. 人工构造决定性场景：跑完一轮后手工从 source-map.json 删除一条 SRC（保留 source-prd.md 不动），再单独驱动一轮 Gate A（按 sdd-feature.js 0.5 节 prompt 让 explore Reviewer 重审），预期 intake-review.json 的 missedClaims 含被删原文，verdict=fix。
+
+### T5.2 Gate B 语义矛盾拦截（P3-02 / P3-03 / P3-04）
+
+1. 复制 T4.1 产物为 specs/ears-manual-5b，把某条 AC 改为与 SRC 原文相反的表述（如原文允许堆叠改为拒绝）。
+2. 按 sdd-feature.js 1.8 节 preservationPrompt 单独驱动一轮 Gate B（explore 只读）。
+3. 预期：preservation-review.json 中该 SRC 的 status=contradicted（带 sourceEvidence 与 specEvidence），verdict=fix；validate-preservation --expect fix 退出 0。
+4. 数值曲解（99 改 999）与例外丢失（删除除非可以堆叠条件）同理，预期 partial 或 contradicted。
+
+### T5.3 过期 Review 拒绝（P3-07）
+
+1. 在 Gate B 通过后手工修改 spec.md 任意一行，执行：
+
+```bash
+node sdd/tools/validate-preservation.mjs ears-manual-5
+```
+
+2. 预期：失败，错误含 `specHash 与 spec.md 不匹配（Spec 已变更但审查未重跑，结论过期）`。
+
+### T5.4 重跑链验证（P3-07 工作流级）
+
+1. 在 Source Coverage 或 Gate B 修复轮中观察日志：spec 被修改后必须依次出现 EARS 格式重检、EARS-Review-Rerun、validate-source-map、Gate B 重审。
+2. 任一环节失败则流程终止，Plan 不启动。
+
+### T5.5 无依据新增语义确认（P3-09）
+
+1. 在 spec.md 追加无 PRD 依据的 FR-099（含合法 EARS AC）。
+2. validate-source-map 报 unsupported-requirement（结构层，T4.3 已覆盖）；若 Mapping Agent 错误地为其建立映射，Gate B 应在 unsupportedRequirements 中列出并触发 verdict 非 pass（LLM 级验证）。
+
+## 七、判定标准汇总
 
 | 编号 | 测试 | 通过标准 |
 |------|------|---------|
@@ -257,8 +301,13 @@ feature: ears-manual-v1
 | T4.2 | 防遗漏决定性 | 删 mapping 后 Gate 拒绝 |
 | T4.3 | 无依据新增拦截 | FR-099 被拒 |
 | T4.4 | 原文改写防护 | prdHash 不匹配被拒 |
+| T5.1 | Gate A 漏提拦截 | missedClaims 命中被删原文 |
+| T5.2 | Gate B 语义矛盾 | contradicted 带证据，verdict=fix |
+| T5.3 | 过期 Review 拒绝 | specHash 失配被拒 |
+| T5.4 | 重跑链 | 四检查对同一版本重新成立 |
+| T5.5 | 无依据新增语义确认 | unsupportedRequirements 命中 |
 
-## 七、注意事项
+## 八、注意事项
 
 1. **headless 模式**：checkpoint 在 `headless: 'approve'` 下自动批准，T2.3 的 clarify 人工确认语义需在交互模式下验证一次。
 2. **网络**：LLM 调用依赖模型 API；git push 依赖代理（本机 127.0.0.1:7897）可用。
@@ -269,7 +318,7 @@ feature: ears-manual-v1
 7. **P2 成本**：每个 Feature 新增 Intake 与 Source Mapping 两次 Agent 调用；确属必要的新增需求应先补 PRD 重跑，不要放宽 Source Coverage Gate。
 8. **pending 处置**：disposition=pending 的 SRC 进入 Plan 前不会被阻断（待澄清项允许存在但必须有 note），若需强制清零 pending 可在人工审批 checkpoint 时一并确认。
 
-## 七、引用说明
+## 九、引用说明
 
 - EARS 规则：`sdd/rules/ears-format.md`、`sdd/rules/ears-semantic-review.md`、`sdd/rules/source-extraction.md`
 - 工作流定义：`.opencode-workflows/workflows/sdd-feature.js`（1.5 格式门禁、1.6 语义门禁）、`.opencode-workflows/workflows/sdd-audit.js`
