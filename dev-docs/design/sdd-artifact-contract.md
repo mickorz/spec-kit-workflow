@@ -29,6 +29,8 @@ flowchart TD
 | Artifact | 真相源角色 | 写入者 | 读取者 | 文件格式 |
 |----------|----------|--------|--------|---------|
 | `spec.md` | 需求真相源 | Specify Agent | Coverage/Reviewer/所有工具 | Markdown |
+| `source-prd.md` | 原始需求原文（EARS-P2） | Intake Agent（逐字写入） | validate-source-map（prdHash 基准） | Markdown |
+| `source-map.json` | 原始需求清单与来源映射（EARS-P2） | Intake Agent（sources）+ Source Mapping Agent（mappings） | validate-source-map / 人工审查 | JSON |
 | `plan.md` | 技术设计参考 | Plan Agent | Tasks Agent/Reviewer | Markdown |
 | `tasks.md` | 任务清单 | Tasks Agent + append-findings | Coverage/Coding Agent | Markdown |
 | `traceability.json` | 任务映射 | Tasks Agent | coverage/is-converged | JSON |
@@ -38,6 +40,15 @@ flowchart TD
 | `sdd/config.json` | 工具配置 | 人工 | run-tests 等工具 | JSON |
 
 ## 三、各 Artifact 详细契约
+
+### 3.0 source-prd.md 与 source-map.json（EARS-P2 新增）
+
+**角色**：PRD → Spec 方向的防遗漏追踪基准。
+
+- `source-prd.md`：原始需求原文逐字保存，prdHash 冻结后不可改写（validate-source-map.mjs 校验哈希）。
+- `source-map.json`：`sources`（SRC-NNN 需求点清单，Intake Agent 写入）+ `mappings`（每 SRC 一条处置：covered/excluded/pending，Source Mapping Agent 写入）。
+- 校验规则：每个 SRC 必须有处置结果；covered 引用须真实存在且归属正确；Spec 中每个 FR/NFR 必须追溯到至少一个 SRC（拦截无依据新增）。
+- 位置：Source Coverage Gate 位于 Plan 之前，未通过则阻断流程。
 
 ### 3.1 spec.md
 

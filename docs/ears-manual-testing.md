@@ -1,7 +1,7 @@
 # EARS 改造手动测试文档
 
-> 适用版本：EARS-P0 + EARS-P1 完成后
-> 日期：2026-10-15
+> 适用版本：EARS-P0 + EARS-P1 + EARS-P2（来源追踪与防漏审计）完成后
+> 日期：2026-10-15（P2 层于同日补充）
 > 关联文档：`dev-docs/planning/EARS改造-P0-执行文档.md`、`dev-docs/planning/EARS改造-P1-执行文档.md`
 > 目的：验证确定性工具链（本机可直接跑）与 LLM 运行时链路（需 OpenCode）的完整行为
 
@@ -21,6 +21,7 @@
 | 第一层 确定性工具回归 | 否 | 校验器、解析器、Coverage、逐 AC 收敛、verdict 读取器 |
 | 第二层 Feature 工作流端到端 | 是 | sdd.feature 全流程含双门禁、修复循环、决定性测试 |
 | 第三层 Audit 工作流端到端 | 是 | sdd.audit 对夹具的逐 AC 审计、标准答案对齐 |
+| 第四层 来源追踪与防漏（EARS-P2） | 否+是 | Source Coverage Gate 确定性用例 + Intake/Mapping 工作流链路 |
 
 ```mermaid
 flowchart TD
@@ -28,6 +29,7 @@ flowchart TD
     B --> C[第三层 Audit 工作流端到端]
     B --> D[语义门禁分支测试]
     C --> E[盲测标准答案对齐]
+    D --> F[第四层 来源追踪与防漏]
 ```
 
 ## 二、第一层：确定性工具回归（无 LLM）
@@ -41,6 +43,14 @@ node sdd/tools/validate-ears-example.mjs
 ```
 
 预期：`13/13 通过, 0 失败`（V01-V13 覆盖五句式、复合句式、折行、全角逗号、缺 shall、双 shall、中文关键字、空条件、无 AC、孤儿 AC、重复 ID、诊断格式）。
+
+### T1.1b Source Coverage 校验器用例矩阵（EARS-P2）
+
+```bash
+node sdd/tools/validate-source-map-example.mjs
+```
+
+预期：`12/12 通过, 0 失败`（S01-S12 覆盖完整正例、excluded/pending 带理由、缺 mapping、无理由排除、空引用、未知 ID、AC 错误归属、无依据新增、重复 SRC、prdHash 不匹配、pending 带映射）。
 
 ### T1.2 冻结 Spec 的 EARS 校验与解析
 
@@ -190,11 +200,46 @@ feature: ears-manual-v1
 
 按 `experiments/setup-run.mjs` 既有流程重跑一轮盲测（spec 已 EARS 化），核对 9/9 缺陷检出、0 假阳性基线是否保持。若 NFR 新增 AC 导致额外发现，先按 P0.7.1 的方法人工判定真阳性再更新标准答案。
 
-## 五、判定标准汇总
+## 五、第四层：来源追踪与防漏（EARS-P2，需 OpenCode）
+
+### T4.1 Intake → Source Coverage 全链路
+
+在 OpenCode 中运行 workflow `sdd_feature`，参数 `feature: ears-manual-4`，goal 使用含明确多条需求的描述（例如 5 条：登录、锁定、解锁、bcrypt、审计日志）。
+
+预期判定点：
+
+| 检查点 | 位置 | 预期 |
+|--------|------|------|
+| Intake 产物 | `specs/ears-manual-4/source-prd.md` | 原文逐字保存 |
+| SRC 提取 | `specs/ears-manual-4/source-map.json` | sources 覆盖 goal 全部需求点，SRC-NNN 唯一 |
+| prdHash 冻结 | source-map.json | 与 source-prd.md 哈希一致 |
+| Specify 逐条转换 | spec.md | 每 SRC 有对应 FR/NFR（或后续被 excluded） |
+| Mapping 处置 | source-map.json mappings | 每 SRC 恰一条 covered/excluded/pending |
+| Source Coverage Gate | 工作流日志 | `Source Coverage Gate 通过` 后才进入 Plan |
+
+### T4.2 防遗漏决定性测试
+
+1. 正常跑完 T4.1 后，手工从 source-map.json 删除一条 mapping（如 SRC-003 的条目）。
+2. 执行 `node sdd/tools/validate-source-map.mjs ears-manual-4`。
+3. 预期：失败，错误含 `SRC-003 [missing-mapping]`，且对应 FR 触发 `unsupported-requirement`。
+
+### T4.3 无依据新增拦截
+
+1. 在 spec.md 中追加一条无 PRD 依据的 `### FR-099: 自动注册`（含合法 EARS AC）。
+2. 执行 `node sdd/tools/validate-ears.mjs ears-manual-4`（应通过）后执行 `node sdd/tools/validate-source-map.mjs ears-manual-4`。
+3. 预期：Source Coverage Gate 失败，错误含 `FR-099 [unsupported-requirement]`。
+
+### T4.4 原文改写防护
+
+1. 修改 source-prd.md 任意内容后执行 `node sdd/tools/validate-source-map.mjs ears-manual-4`。
+2. 预期：失败，错误含 `[prd-hash]`。恢复原文后通过。
+
+## 六、判定标准汇总
 
 | 编号 | 测试 | 通过标准 |
 |------|------|---------|
 | T1.1 | 校验器矩阵 | 13/13 |
+| T1.1b | Source Coverage 矩阵 | 12/12 |
 | T1.2 | 冻结 Spec 校验 | 7 FR / 5 NFR / 33 AC 全通过 |
 | T1.3 | verdict 三态 | 退出码与摘要正确 |
 | T1.4 | NFR 免检拒绝 | ac=null 被拒 |
@@ -208,8 +253,12 @@ feature: ears-manual-v1
 | T3.2 | v2-v4 审计 | 与标准答案一致 |
 | T3.3 | 完整性 | 源码被改判 invalid |
 | T3.4 | 盲测校准 | 缺陷检出率不低于既有基线 |
+| T4.1 | Intake 到 Gate 全链 | 每 SRC 有处置，Gate 通过后才进 Plan |
+| T4.2 | 防遗漏决定性 | 删 mapping 后 Gate 拒绝 |
+| T4.3 | 无依据新增拦截 | FR-099 被拒 |
+| T4.4 | 原文改写防护 | prdHash 不匹配被拒 |
 
-## 六、注意事项
+## 七、注意事项
 
 1. **headless 模式**：checkpoint 在 `headless: 'approve'` 下自动批准，T2.3 的 clarify 人工确认语义需在交互模式下验证一次。
 2. **网络**：LLM 调用依赖模型 API；git push 依赖代理（本机 127.0.0.1:7897）可用。
@@ -217,12 +266,14 @@ feature: ears-manual-v1
 4. **修复循环成本**：语义门禁最坏 2 轮 = 6 次额外 Agent 调用，注意 token 与时长预算。
 5. **测试后清理**：手动测试产生的 `specs/ears-manual-*`、`fixtures/ears-manual-*-app`、`audit-results/ears-manual-*` 与 `sdd/config.json` 临时条目，验收完成后清理。
 6. **NFR 新增 AC 的证据**：审计中 NFR 的 AC-028~033 依赖 static_check 的 fileRef，Reviewer 必须给出真实文件行号；`audit-converge.mjs` 会校验文件存在性。
+7. **P2 成本**：每个 Feature 新增 Intake 与 Source Mapping 两次 Agent 调用；确属必要的新增需求应先补 PRD 重跑，不要放宽 Source Coverage Gate。
+8. **pending 处置**：disposition=pending 的 SRC 进入 Plan 前不会被阻断（待澄清项允许存在但必须有 note），若需强制清零 pending 可在人工审批 checkpoint 时一并确认。
 
 ## 七、引用说明
 
-- EARS 规则：`sdd/rules/ears-format.md`、`sdd/rules/ears-semantic-review.md`
+- EARS 规则：`sdd/rules/ears-format.md`、`sdd/rules/ears-semantic-review.md`、`sdd/rules/source-extraction.md`
 - 工作流定义：`.opencode-workflows/workflows/sdd-feature.js`（1.5 格式门禁、1.6 语义门禁）、`.opencode-workflows/workflows/sdd-audit.js`
 - Artifact 契约：`dev-docs/design/sdd-artifact-contract.md`
-- 执行报告：`dev-docs/progress-result/EARS-P0-执行报告.md`、`dev-docs/progress-result/EARS-P1-执行报告.md`
+- 执行报告：`dev-docs/progress-result/EARS-P0-执行报告.md`、`dev-docs/progress-result/EARS-P1-执行报告.md`、`dev-docs/progress-result/EARS-P2-执行报告.md`
 - EARS 原始方法：https://alistairmavin.com/ears/
 - cc-sdd 参考：`thirdparties/cc-sdd/tools/cc-sdd/templates/shared/settings/rules/ears-format.md`

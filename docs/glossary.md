@@ -13,6 +13,8 @@
 | **FR** | Functional Requirement | 功能需求 | 描述系统应该"做什么"的需求。每条 FR 对应一个可测试的功能行为，如"创建任务""用户登录"。编号格式 `FR-NNN`（三位数字，从 001 起不重复） |
 | **NFR** | Non-Functional Requirement | 非功能需求 | 描述系统"做得怎么样"的质量约束，如性能、安全、可维护性。不直接对应用户可见功能，但约束功能的实现方式。编号格式 `NFR-NNN` |
 | **AC** | Acceptance Criteria | 验收条件 | 每个 FR 下挂载的可验证条件，描述"做到什么程度才算完成"。一条 AC 是一条可测试的断言，如"标题为空时抛出错误"。编号格式 `AC-NNN`（全局唯一，从 001 起不重复）。每个 FR 至少一个 AC |
+| **SRC** | Source Requirement | 原始需求点 | Intake 阶段从原始 PRD 中逐条提取的需求点，编号格式 `SRC-NNN`（三位数字，全局唯一）。是 PRD → Spec 方向防遗漏追踪的基准（EARS-P2） |
+| **EARS** | Easy Approach to Requirements Syntax | 简易需求语法 | AC 的强制书写规范：触发关键字（When While If Where The shall）保留英文，五种基础句式 + 复合句式，每条 AC 单一行为。规则见 `sdd/rules/ears-format.md`，确定性校验器为 `validate-ears.mjs`（EARS-P0） |
 
 ### ID 编号规则
 
@@ -23,12 +25,12 @@ FR-001        功能需求第 1 条
 FR-002        功能需求第 2 条
   AC-003      验收条件第 3 条
 NFR-001       非功能需求第 1 条
-              （NFR 通常不挂 AC，但可挂载）
+  AC-004      NFR 也必须挂 AC（EARS 契约）
 ```
 
 - FR/NFR 编号在各目内独立递增（FR-001..FR-008, NFR-001..NFR-005）
 - AC 编号全局递增，不按 FR 分组重新计数
-- 每条 FR 至少一个 AC；NFR 可无 AC（acceptanceIds 为空数组）
+- EARS 契约（P0 起）：每个 FR 和 NFR 必须至少一个 AC，且全部符合 EARS 句式；NFR 的 acceptanceIds 不允许为空
 
 ---
 
@@ -61,6 +63,10 @@ NFR-001       非功能需求第 1 条
 | **verificationMethod** | Verification Method | 验证方式 | 枚举值：`test`（通过自动化测试验证）或 `manual`（通过人工检查验证）。NFR 常用 manual |
 | **Coverage** | Coverage Gate | 覆盖率门禁 | 工具检查：Spec 中的每条 FR/NFR 都在 Traceability 中有映射、每个 Task 都在 tasks.md 中存在、没有遗漏或多余。未通过则阻断流程 |
 | **Coverage Gate** | Coverage Gate | 覆盖率门禁检查 | 同上，`coverage.mjs` 执行，输出 `[OK]` 或 `[FAIL]` |
+| **Intake** | Requirement Intake | 需求接入 | sdd-feature 的第一阶段（EARS-P2）：Agent 从原始 PRD 逐条提取 SRC 需点写入 source-map.json，原文逐字保存到 source-prd.md，prdHash 冻结防改写 |
+| **source-map** | Source Map | 来源映射表 | `specs/<feature>/source-map.json`，记录 sources（SRC 需求点清单）与 mappings（SRC 到 FR/NFR/AC 的处置映射），由 `validate-source-map.mjs` 确定性校验 |
+| **disposition** | Disposition | 处置结果 | source-map 中每个 SRC 的处理结论，枚举：`covered`（已转换，requirementIds 必填）/ `excluded`（明确不做，须 note 理由）/ `pending`（待澄清，须 note）。不允许静默丢失 |
+| **Source Coverage Gate** | Source Coverage Gate | 来源覆盖门禁 | `validate-source-map.mjs` 执行的确定性检查：每个 SRC 必须有处置结果、covered 引用必须真实存在且归属正确、Spec 中每个 FR/NFR 必须追溯到至少一个 SRC（反向拦截无依据新增）。位于 Plan 之前 |
 
 ### Traceability 示例
 
@@ -78,7 +84,7 @@ NFR-001       非功能需求第 1 条
     {
       "requirementId": "NFR-004",     // 非功能需求
       "taskId": "T-010",
-      "acceptanceIds": [],            // NFR 可无 AC
+      "acceptanceIds": ["AC-012"],   // EARS 契约：NFR 也必须逐 AC 映射
       "verificationMethod": "manual"   // 用人工检查验证
     }
   ]

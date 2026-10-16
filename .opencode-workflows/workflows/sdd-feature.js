@@ -22,6 +22,44 @@ const appDir = `fixtures/${feature}-app`
 
 // === 阶段一：规格驱动 ===
 
+// 0. Intake：原始需求提取（EARS-P2：PRD → SRC 需求点，防遗漏的确定性基准）
+phase('Intake')
+const intake = await agent(
+  `你是需求 Intake Agent。依据 sdd/rules/source-extraction.md 规则，从原始需求中逐条提取需求点。
+
+原始需求：
+${goal}
+
+要求：
+1. 先将原始需求原文逐字写入 ${dir}/source-prd.md（不得改写概括补充，如目录不存在请先创建）。
+2. 提取每个可独立验证的需求点为 SRC-NNN（三位数字，按原文出现顺序），一条不漏。
+3. 非功能要求（性能 安全 日志 合规）也必须提取。
+4. status 只用 confirmed（原文明确）或 assumed（推断，text 中注明推断依据）。
+5. 在 ${dir}/source-map.json 写入：
+
+{
+  "feature": "${feature}",
+  "prdHash": "",
+  "sources": [
+    { "sourceId": "SRC-001", "text": "需求点原文或保守转述", "status": "confirmed" }
+  ],
+  "mappings": []
+}
+
+注意：prdHash 留空，由工具填充；mappings 留空数组，由后续 Mapping 阶段填写。
+禁止调用 workflow 工具。`,
+  { label: 'Intake', agentType: 'general', timeoutMs: 3600000 }
+)
+await check(() => intake !== null, 'Intake 失败')
+await check(() => fileExists(`${dir}/source-prd.md`), 'source-prd.md 不存在')
+await check(() => fileExists(`${dir}/source-map.json`), 'source-map.json 不存在')
+
+// 冻结 prdHash（Intake 后原始需求不可再改写）
+await check(
+  () => commandSuccess(`node sdd/tools/freeze-source-map.mjs ${feature}`),
+  'source-map prdHash 冻结失败'
+)
+
 // 1. Specify
 phase('Specify')
 const spec = await agent(
@@ -40,7 +78,8 @@ const spec = await agent(
 6. 不得擅自补充原始需求未提及的业务数值或规则
 7. 无法确定的条件以 [待澄清: 原因] 标记，不得猜测
 8. 覆盖正常流程、异常流程及边界条件
-9. 按模板结构在 ${dir}/ 目录下生成 spec.md（如目录不存在请先创建）
+9. 逐条对照 ${dir}/source-map.json 的 sources，每个 SRC 都要有对应的 FR/NFR 或明确的范围决策，不得遗漏；不做的范围不要写入 Spec
+10. 按模板结构在 ${dir}/ 目录下生成 spec.md（如目录不存在请先创建）
 
 禁止调用 workflow 工具。`,
   { label: 'Specify', agentType: 'general', timeoutMs: 3600000 }
@@ -159,6 +198,57 @@ ${goal}
   )
 }
 await check(() => earsPassed, 'EARS 语义门禁两轮未通过，流程终止（真歧义应走人工澄清路径）')
+
+// 1.7 Source Coverage Gate（EARS-P2：PRD → Spec 来源追踪与防遗漏，确定性）
+phase('Source Coverage')
+const mappingPrompt = `你是 Source Mapping Agent。依据 sdd/rules/source-extraction.md 的 disposition 规则，填写原始需求到 Spec 的映射。
+
+读取以下文件：
+1. ${dir}/source-map.json —— 原始需求清单（sources 已由 Intake 提取，mappings 待你填写）
+2. ${dir}/spec.md —— 已通过 EARS 双门禁的需求规格
+
+要求：
+1. 为每个 SRC 填写恰好一条 mapping：
+   - covered：已转换为 Spec 需求，requirementIds 必填真实存在，acceptanceIds 填对应 AC。
+   - excluded：明确不做，必须给 note 理由，不允许静默丢失。
+   - pending：待业务澄清，必须给 note；禁止用 excluded 吞掉不确定项。
+2. Spec 中每个 FR 和 NFR 都应能追溯到至少一个 SRC；无法追溯的属于无依据新增，不要为其编造映射。
+3. 不确定的用 pending，不要猜测。
+4. 只更新 source-map.json 的 mappings 数组，不动 sources 与 prdHash。
+5. 重写 ${dir}/source-map.json。
+禁止调用 workflow 工具。`
+
+const mapper = await agent(mappingPrompt, {
+  label: 'Source-Mapping',
+  agentType: 'general',
+  timeoutMs: 3600000
+})
+await check(() => mapper !== null, 'Source Mapping 失败')
+
+let sourceCoveragePassed = false
+for (let attempt = 1; attempt <= 2; attempt++) {
+  if (await commandSuccess(`node sdd/tools/validate-source-map.mjs ${feature}`)) {
+    log('Source Coverage Gate 通过（原始需求全部有处置结果，Spec 无无依据新增）')
+    sourceCoveragePassed = true
+    break
+  }
+
+  if (attempt === 1) {
+    log('Source Coverage 校验失败，按诊断修复（source-map-fix）')
+    const fixer = await agent(
+      `运行 node sdd/tools/validate-source-map.mjs ${feature} 查看诊断输出。
+依据诊断修复问题：
+- mapping 缺失或 disposition 错误 → 修正 ${dir}/source-map.json 的 mappings。
+- unsupported-requirement（Spec 需求无 SRC 依据）→ 若确属必要新增，从 spec.md 中删除该需求；若它是某条 SRC 的合理细化，把映射补到对应 SRC。
+- unknown-id 或 ownership → 修正引用。
+- prd-hash → 仅当 source-prd.md 未被人为改写时，运行 node sdd/tools/freeze-source-map.mjs ${feature}。
+禁止调用 workflow 工具。`,
+      { label: 'Source-Map-Fix', agentType: 'general', timeoutMs: 3600000 }
+    )
+    await check(() => fixer !== null, 'Source Map 修复失败')
+  }
+}
+await check(() => sourceCoveragePassed, 'Source Coverage Gate 修复一轮后仍未通过，流程终止（PRD 需求未被完整处置）')
 
 // 2. Plan
 phase('Plan')
